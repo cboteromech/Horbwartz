@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 
 # ----------------------------
-# Configuración
+# Config & utilidades
 # ----------------------------
 st.set_page_config(page_title="Sistema Hogwarts", page_icon="🏆", layout="wide")
 
@@ -53,7 +53,7 @@ FRATERNIDADES = sorted(list(set(fraternidades_existentes + fraternidades_default
 st.session_state.setdefault("busqueda_codigo", "")
 st.session_state.setdefault("busqueda_nombre", "")
 st.session_state.setdefault("activar_camara", False)
-st.session_state.setdefault("abrir_puntos", False)
+st.session_state.setdefault("select_estudiante", None)
 
 st.title("🏆 Sistema de Puntos Hogwarts")
 
@@ -112,47 +112,40 @@ if st.session_state.get("activar_camara", False):
         file_bytes = np.asarray(bytearray(foto.getbuffer()), dtype=np.uint8)
         img = cv2.imdecode(file_bytes, 1)
 
+        # Detectar QR con OpenCV
         detector = cv2.QRCodeDetector()
         qr, bbox, _ = detector.detectAndDecode(img)
 
         if qr:
             st.session_state["busqueda_codigo"] = qr.strip()
-            st.session_state["activar_camara"] = False
-            st.session_state["abrir_puntos"] = True
-
-            # Seleccionar automáticamente al estudiante
+            st.success(f"📌 Código detectado automáticamente: {qr}")
+            st.session_state["activar_camara"] = False  # cerrar cámara
+            # Forzar selección automática en el selectbox
             match = df[df["Código"].astype(str) == qr.strip()]
             if not match.empty:
                 st.session_state["select_estudiante"] = match["NombreCompleto"].iloc[0]
-            st.success(f"📌 Estudiante detectado: {st.session_state['select_estudiante']}")
             st.rerun()
-        else:
-            st.warning("⚠️ No se detectó un QR válido.")
 
 st.session_state["busqueda_nombre"] = st.text_input(
     "Buscar por nombre o apellido", st.session_state.get("busqueda_nombre", ""), key="search_nombre"
 )
 
 # Resolver búsqueda
-estudiante = None
 found = pd.DataFrame()
 if st.session_state["busqueda_codigo"].strip():
     found = df[df["Código"].astype(str) == st.session_state["busqueda_codigo"].strip()]
 elif st.session_state["busqueda_nombre"].strip():
     found = df[df["NombreCompleto"].str.contains(st.session_state["busqueda_nombre"], case=False, na=False)]
 
-if not found.empty:
-    if "select_estudiante" in st.session_state and st.session_state["select_estudiante"] in found["NombreCompleto"].values:
-        estudiante = st.session_state["select_estudiante"]
-    elif len(found) == 1:
-        estudiante = found["NombreCompleto"].iloc[0]
-        st.session_state["select_estudiante"] = estudiante
-    else:
-        opciones = found["NombreCompleto"].tolist()
-        estudiante = st.selectbox("Selecciona un estudiante", opciones, key="select_estudiante")
+opciones = found["NombreCompleto"].tolist() if not found.empty else df["NombreCompleto"].tolist()
+
+if opciones:
+    index_default = 0
+    if st.session_state.get("select_estudiante") in opciones:
+        index_default = opciones.index(st.session_state["select_estudiante"])
+    estudiante = st.selectbox("Selecciona un estudiante", opciones, index=index_default, key="select_estudiante")
 else:
-    opciones = df["NombreCompleto"].tolist()
-    estudiante = st.selectbox("Selecciona un estudiante", opciones, key="select_estudiante") if opciones else None
+    estudiante = None
 
 # =======================================================
 # Card info
@@ -162,58 +155,36 @@ if estudiante:
     st.info(f"👤 **{estudiante}** | 🪪 Código: **{row['Código']}** | 🏠 Fraternidad: **{row['Fraternidad']}** | 🧮 Total: **{int(row['Total'])}**")
 
 # =======================================================
-# Asignar puntos
+# Editar estudiante
 # =======================================================
 if estudiante:
-    with st.expander("➕➖ Asignar puntos", expanded=st.session_state.get("abrir_puntos", False)):
-        st.session_state["abrir_puntos"] = False
-        codigo_est = df.loc[df["NombreCompleto"] == estudiante, "Código"].iloc[0]
+    with st.expander("✏️ Editar datos del estudiante", expanded=False):
+        fila = df.loc[df["NombreCompleto"] == estudiante].iloc[0]
+        ec1, ec2, ec3, ec4 = st.columns(4)
+        with ec1:
+            nuevo_codigo = st.text_input("Código", str(fila["Código"]), key="edit_codigo")
+        with ec2:
+            nuevo_nombre = st.text_input("Nombre", str(fila["Nombre"]), key="edit_nombre")
+        with ec3:
+            nuevo_apellido = st.text_input("Apellidos", str(fila["Apellidos"]), key="edit_apellido")
+        with ec4:
+            try:
+                idx_frat = FRATERNIDADES.index(str(fila["Fraternidad"]))
+            except ValueError:
+                idx_frat = 0
+            nueva_fraternidad = st.selectbox("Fraternidad", FRATERNIDADES, index=idx_frat, key="edit_frat")
 
-        pc1, pc2, pc3 = st.columns(3)
-        with pc1:
-            columna = st.selectbox("Categoría", CATEGORIAS, key="puntos_categoria")
-        with pc2:
-            puntos = st.number_input("Puntos (+/-)", step=1, value=1, min_value=-10, max_value=10, key="puntos_valor")
-        with pc3:
-            accion_rapida = st.radio("Acción rápida", ["Ninguna", "+1", "+5", "-1", "-5"], index=0, horizontal=True, key="puntos_rapidos")
-            if accion_rapida != "Ninguna":
-                puntos = int(accion_rapida.replace("+","")) if "+" in accion_rapida else -int(accion_rapida.replace("-",""))
-                puntos = max(-10, min(10, puntos))
-
-        if st.button("Actualizar puntos", key="btn_actualizar_puntos"):
-            df.loc[df["Código"].astype(str) == str(codigo_est), columna] += int(puntos)
+        if st.button("💾 Guardar cambios", key="btn_save_edit"):
+            df.loc[df["Código"].astype(str) == str(fila["Código"]).strip(),
+                   ["Código","Nombre","Apellidos","Fraternidad"]] = [
+                        str(nuevo_codigo).strip(),
+                        str(nuevo_nombre).strip(),
+                        str(nuevo_apellido).strip(),
+                        str(nueva_fraternidad).strip()
+                   ]
+            df["NombreCompleto"] = (df["Nombre"].astype(str).str.strip() + " " +
+                                    df["Apellidos"].astype(str).str.strip()).str.strip()
             df["Total"] = df[CATEGORIAS].sum(axis=1)
             guardar_csv_seguro(df, FILE)
-            st.success(f"✅ {puntos:+} puntos a **{estudiante}** en **{columna}**.")
+            st.success("✅ Datos actualizados.")
             st.rerun()
-
-# =======================================================
-# Tabla y gráficas
-# =======================================================
-st.subheader("📊 Tabla de puntos")
-frat_sel = st.selectbox("Filtrar por fraternidad", ["Todas"] + FRATERNIDADES, key="filtro_frat")
-df_filtrado = df if frat_sel == "Todas" else df[df["Fraternidad"] == frat_sel]
-st.dataframe(df_filtrado, use_container_width=True)
-
-gc1, gc2 = st.columns(2)
-if estudiante:
-    with gc1:
-        st.subheader(f"📈 Perfil de {estudiante}")
-        vals = df.loc[df["NombreCompleto"] == estudiante, CATEGORIAS].iloc[0]
-        fig, ax = plt.subplots()
-        vals.plot(kind="bar", ax=ax, color="skyblue")
-        ax.set_title(f"Puntos por categoría - {estudiante}")
-        ax.set_ylabel("Puntos")
-        plt.xticks(rotation=45, ha="right")
-        st.pyplot(fig)
-
-if frat_sel != "Todas":
-    with gc2:
-        st.subheader(f"🏠 Fraternidad: {frat_sel}")
-        tot = df_filtrado[CATEGORIAS].sum()
-        fig2, ax2 = plt.subplots()
-        tot.plot(kind="bar", ax=ax2, color="orange")
-        ax2.set_title(f"Puntos acumulados - {frat_sel}")
-        ax2.set_ylabel("Puntos")
-        plt.xticks(rotation=45, ha="right")
-        st.pyplot(fig2)
