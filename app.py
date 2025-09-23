@@ -50,11 +50,12 @@ fraternidades_existentes = df["Fraternidad"].dropna().astype(str).str.strip().un
 fraternidades_default = ["Gryffindor", "Slytherin", "Hufflepuff", "Ravenclaw"]
 FRATERNIDADES = sorted(list(set(fraternidades_existentes + fraternidades_default)))
 
-# Session state
+# Estado global
 st.session_state.setdefault("busqueda_codigo", "")
 st.session_state.setdefault("busqueda_nombre", "")
 st.session_state.setdefault("activar_camara", False)
-st.session_state.setdefault("abrir_puntos", False)  # para auto-abrir la sección de puntos
+st.session_state.setdefault("abrir_puntos", False)
+st.session_state.setdefault("select_estudiante", None)
 
 st.title("🏆 Sistema de Puntos Hogwarts")
 
@@ -105,10 +106,9 @@ with colb1:
         key="search_codigo"
     )
 with colb2:
-    # Solo abre la cámara si el usuario lo pide
     if st.button("📷 Escanear QR", key="abrir_qr"):
         st.session_state["activar_camara"] = True
-        st.session_state["busqueda_nombre"] = ""  # limpiar búsqueda por nombre
+        st.session_state["busqueda_nombre"] = ""
 
 # Cámara solo cuando se activa
 if st.session_state.get("activar_camara", False):
@@ -117,14 +117,17 @@ if st.session_state.get("activar_camara", False):
         file_bytes = np.asarray(bytearray(foto.getbuffer()), dtype=np.uint8)
         img = cv2.imdecode(file_bytes, 1)
 
-        # Detectar QR con OpenCV (sin pyzbar)
+        # Detectar QR con OpenCV
         detector = cv2.QRCodeDetector()
         qr, bbox, _ = detector.detectAndDecode(img)
 
         if qr:
             st.session_state["busqueda_codigo"] = qr.strip()
-            st.session_state["activar_camara"] = False  # cerrar cámara de inmediato
-            st.session_state["abrir_puntos"] = True     # abrir puntos automáticamente
+            st.session_state["activar_camara"] = False
+            st.session_state["abrir_puntos"] = True
+            match = df[df["Código"].astype(str) == qr.strip()]
+            if not match.empty:
+                st.session_state["select_estudiante"] = match["NombreCompleto"].iloc[0]
             st.success(f"📌 Código detectado: {qr}")
             st.rerun()
         else:
@@ -137,26 +140,22 @@ st.session_state["busqueda_nombre"] = st.text_input(
     key="search_nombre"
 )
 
-# Resolver búsqueda: auto-selección si hay match único por código
-estudiante = None
+# Resolver búsqueda
 found = pd.DataFrame()
 if st.session_state["busqueda_codigo"].strip():
     found = df[df["Código"].astype(str) == st.session_state["busqueda_codigo"].strip()]
 elif st.session_state["busqueda_nombre"].strip():
     found = df[df["NombreCompleto"].str.contains(st.session_state["busqueda_nombre"], case=False, na=False)]
 
-if not found.empty:
-    # Si hay una sola coincidencia => selección automática
-    if len(found) == 1:
-        estudiante = found["NombreCompleto"].iloc[0]
-        st.success(f"🎓 Estudiante seleccionado automáticamente: **{estudiante}**")
-    else:
-        opciones = found["NombreCompleto"].tolist()
-        estudiante = st.selectbox("Selecciona un estudiante", opciones, key="select_estudiante")
+opciones = found["NombreCompleto"].tolist() if not found.empty else df["NombreCompleto"].tolist()
+
+if opciones:
+    index_default = 0
+    if st.session_state.get("select_estudiante") in opciones:
+        index_default = opciones.index(st.session_state["select_estudiante"])
+    estudiante = st.selectbox("Selecciona un estudiante", opciones, index=index_default, key="select_estudiante")
 else:
-    # Sin filtros válidos, lista completa (manual)
-    opciones = df["NombreCompleto"].tolist()
-    estudiante = st.selectbox("Selecciona un estudiante", opciones, key="select_estudiante") if opciones else None
+    estudiante = None
 
 # =======================================================
 # Card info
@@ -200,6 +199,7 @@ if estudiante:
                                     df["Apellidos"].astype(str).str.strip()).str.strip()
             df["Total"] = df[CATEGORIAS].sum(axis=1)
             guardar_csv_seguro(df, FILE)
+            st.session_state["select_estudiante"] = f"{nuevo_nombre} {nuevo_apellido}".strip()
             st.success("✅ Datos actualizados.")
             st.rerun()
 
@@ -208,7 +208,6 @@ if estudiante:
 # =======================================================
 if estudiante:
     with st.expander("➕➖ Asignar puntos", expanded=st.session_state.get("abrir_puntos", False)):
-        # cerrar auto la próxima vez
         if st.session_state.get("abrir_puntos", False):
             st.session_state["abrir_puntos"] = False
 
@@ -218,7 +217,6 @@ if estudiante:
         with pc1:
             columna = st.selectbox("Categoría", CATEGORIAS, key="puntos_categoria")
         with pc2:
-            # Limitar rango entre -10 y +10
             puntos = st.number_input("Puntos (+/-)", step=1, value=1, min_value=-10, max_value=10, key="puntos_valor")
         with pc3:
             accion_rapida = st.radio(
@@ -227,7 +225,7 @@ if estudiante:
             )
             if accion_rapida != "Ninguna":
                 puntos = int(accion_rapida.replace("+","")) if "+" in accion_rapida else -int(accion_rapida.replace("-",""))
-                puntos = max(-10, min(10, puntos))  # asegurar límites
+                puntos = max(-10, min(10, puntos))
 
         if st.button("Actualizar puntos", key="btn_actualizar_puntos"):
             if -10 <= puntos <= 10:
