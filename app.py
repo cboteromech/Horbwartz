@@ -6,7 +6,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import cv2
 import numpy as np
-from pyzbar.pyzbar import decode
 
 # ----------------------------
 # Config & utilidades
@@ -111,10 +110,13 @@ if st.session_state.get("activar_camara", False):
     if foto:
         file_bytes = np.asarray(bytearray(foto.getbuffer()), dtype=np.uint8)
         img = cv2.imdecode(file_bytes, 1)
-        decoded = decode(img)
-        if decoded:
-            qr = decoded[0].data.decode("utf-8").strip()
-            st.session_state["busqueda_codigo"] = qr
+
+        # 🔄 Detectar QR con OpenCV
+        detector = cv2.QRCodeDetector()
+        qr, bbox, _ = detector.detectAndDecode(img)
+
+        if qr:
+            st.session_state["busqueda_codigo"] = qr.strip()
             st.success(f"📌 Código detectado automáticamente: {qr}")
             st.session_state["activar_camara"] = False  # cerrar cámara
             st.rerun()
@@ -198,8 +200,7 @@ if estudiante:
                                      index=0, horizontal=True, key="puntos_rapidos")
             if accion_rapida != "Ninguna":
                 puntos = int(accion_rapida.replace("+","")) if "+" in accion_rapida else -int(accion_rapida.replace("-",""))
-                # Aseguramos el límite
-                puntos = max(-10, min(10, puntos))
+                puntos = max(-10, min(10, puntos))  # asegurar límites
 
         if st.button("Actualizar puntos", key="btn_actualizar_puntos"):
             if -10 <= puntos <= 10:
@@ -210,7 +211,6 @@ if estudiante:
                 st.rerun()
             else:
                 st.error("⚠️ Solo se permite asignar entre -10 y +10 puntos.")
-
 
 # =======================================================
 # Tabla y gráficas
