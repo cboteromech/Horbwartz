@@ -108,7 +108,7 @@ with colb1:
 with colb2:
     if st.button("📷 Escanear QR", key="abrir_qr"):
         st.session_state["activar_camara"] = True
-        st.session_state["busqueda_nombre"] = ""  # limpiar búsqueda por nombre
+        st.session_state["busqueda_nombre"] = ""
 
 # Cámara solo cuando se activa
 if st.session_state.get("activar_camara", False):
@@ -125,7 +125,6 @@ if st.session_state.get("activar_camara", False):
             st.session_state["busqueda_codigo"] = qr.strip()
             st.session_state["activar_camara"] = False
             st.session_state["abrir_puntos"] = True
-            # Seleccionar estudiante automáticamente
             match = df[df["Código"].astype(str) == qr.strip()]
             if not match.empty:
                 st.session_state["select_estudiante"] = match["NombreCompleto"].iloc[0]
@@ -200,6 +199,7 @@ if estudiante:
                                     df["Apellidos"].astype(str).str.strip()).str.strip()
             df["Total"] = df[CATEGORIAS].sum(axis=1)
             guardar_csv_seguro(df, FILE)
+            st.session_state["select_estudiante"] = f"{nuevo_nombre} {nuevo_apellido}".strip()
             st.success("✅ Datos actualizados.")
             st.rerun()
 
