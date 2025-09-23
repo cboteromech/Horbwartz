@@ -50,9 +50,11 @@ fraternidades_existentes = df["Fraternidad"].dropna().astype(str).str.strip().un
 fraternidades_default = ["Gryffindor", "Slytherin", "Hufflepuff", "Ravenclaw"]
 FRATERNIDADES = sorted(list(set(fraternidades_existentes + fraternidades_default)))
 
+# Estado global
 st.session_state.setdefault("busqueda_codigo", "")
 st.session_state.setdefault("busqueda_nombre", "")
 st.session_state.setdefault("activar_camara", False)
+st.session_state.setdefault("abrir_puntos", False)
 st.session_state.setdefault("select_estudiante", None)
 
 st.title("🏆 Sistema de Puntos Hogwarts")
@@ -99,11 +101,14 @@ st.subheader("🔎 Buscar estudiante")
 colb1, colb2 = st.columns([2,1])
 with colb1:
     st.session_state["busqueda_codigo"] = st.text_input(
-        "Buscar por código", st.session_state.get("busqueda_codigo", ""), key="search_codigo"
+        "Buscar por código",
+        st.session_state.get("busqueda_codigo", ""),
+        key="search_codigo"
     )
 with colb2:
     if st.button("📷 Escanear QR", key="abrir_qr"):
         st.session_state["activar_camara"] = True
+        st.session_state["busqueda_nombre"] = ""  # limpiar búsqueda por nombre
 
 # Cámara solo cuando se activa
 if st.session_state.get("activar_camara", False):
@@ -118,16 +123,22 @@ if st.session_state.get("activar_camara", False):
 
         if qr:
             st.session_state["busqueda_codigo"] = qr.strip()
-            st.success(f"📌 Código detectado automáticamente: {qr}")
-            st.session_state["activar_camara"] = False  # cerrar cámara
-            # Forzar selección automática en el selectbox
+            st.session_state["activar_camara"] = False
+            st.session_state["abrir_puntos"] = True
+            # Seleccionar estudiante automáticamente
             match = df[df["Código"].astype(str) == qr.strip()]
             if not match.empty:
                 st.session_state["select_estudiante"] = match["NombreCompleto"].iloc[0]
+            st.success(f"📌 Código detectado: {qr}")
             st.rerun()
+        else:
+            st.warning("No se detectó un QR válido. Intenta de nuevo.")
 
+# Búsqueda por nombre
 st.session_state["busqueda_nombre"] = st.text_input(
-    "Buscar por nombre o apellido", st.session_state.get("busqueda_nombre", ""), key="search_nombre"
+    "Buscar por nombre o apellido",
+    st.session_state.get("busqueda_nombre", ""),
+    key="search_nombre"
 )
 
 # Resolver búsqueda
@@ -152,7 +163,10 @@ else:
 # =======================================================
 if estudiante:
     row = df.loc[df["NombreCompleto"] == estudiante].iloc[0]
-    st.info(f"👤 **{estudiante}** | 🪪 Código: **{row['Código']}** | 🏠 Fraternidad: **{row['Fraternidad']}** | 🧮 Total: **{int(row['Total'])}**")
+    st.info(
+        f"👤 **{estudiante}** | 🪪 Código: **{row['Código']}** | "
+        f"🏠 Fraternidad: **{row['Fraternidad']}** | 🧮 Total: **{int(row['Total'])}**"
+    )
 
 # =======================================================
 # Editar estudiante
@@ -188,3 +202,68 @@ if estudiante:
             guardar_csv_seguro(df, FILE)
             st.success("✅ Datos actualizados.")
             st.rerun()
+
+# =======================================================
+# Puntos
+# =======================================================
+if estudiante:
+    with st.expander("➕➖ Asignar puntos", expanded=st.session_state.get("abrir_puntos", False)):
+        if st.session_state.get("abrir_puntos", False):
+            st.session_state["abrir_puntos"] = False
+
+        codigo_est = df.loc[df["NombreCompleto"] == estudiante, "Código"].iloc[0]
+
+        pc1, pc2, pc3 = st.columns(3)
+        with pc1:
+            columna = st.selectbox("Categoría", CATEGORIAS, key="puntos_categoria")
+        with pc2:
+            puntos = st.number_input("Puntos (+/-)", step=1, value=1, min_value=-10, max_value=10, key="puntos_valor")
+        with pc3:
+            accion_rapida = st.radio(
+                "Acción rápida", ["Ninguna", "+1", "+5", "-1", "-5"],
+                index=0, horizontal=True, key="puntos_rapidos"
+            )
+            if accion_rapida != "Ninguna":
+                puntos = int(accion_rapida.replace("+","")) if "+" in accion_rapida else -int(accion_rapida.replace("-",""))
+                puntos = max(-10, min(10, puntos))
+
+        if st.button("Actualizar puntos", key="btn_actualizar_puntos"):
+            if -10 <= puntos <= 10:
+                df.loc[df["Código"].astype(str) == str(codigo_est), columna] += int(puntos)
+                df["Total"] = df[CATEGORIAS].sum(axis=1)
+                guardar_csv_seguro(df, FILE)
+                st.success(f"✅ {puntos:+} puntos a **{estudiante}** en **{columna}**.")
+                st.rerun()
+            else:
+                st.error("⚠️ Solo se permite asignar entre -10 y +10 puntos.")
+
+# =======================================================
+# Tabla y gráficas
+# =======================================================
+st.subheader("📊 Tabla de puntos")
+frat_sel = st.selectbox("Filtrar por fraternidad", ["Todas"] + FRATERNIDADES, key="filtro_frat")
+df_filtrado = df if frat_sel == "Todas" else df[df["Fraternidad"] == frat_sel]
+st.dataframe(df_filtrado, use_container_width=True)
+
+gc1, gc2 = st.columns(2)
+if estudiante:
+    with gc1:
+        st.subheader(f"📈 Perfil de {estudiante}")
+        vals = df.loc[df["NombreCompleto"] == estudiante, CATEGORIAS].iloc[0]
+        fig, ax = plt.subplots()
+        vals.plot(kind="bar", ax=ax, color="skyblue")
+        ax.set_title(f"Puntos por categoría - {estudiante}")
+        ax.set_ylabel("Puntos")
+        plt.xticks(rotation=45, ha="right")
+        st.pyplot(fig)
+
+if frat_sel != "Todas":
+    with gc2:
+        st.subheader(f"🏠 Fraternidad: {frat_sel}")
+        tot = df_filtrado[CATEGORIAS].sum()
+        fig2, ax2 = plt.subplots()
+        tot.plot(kind="bar", ax=ax2, color="orange")
+        ax2.set_title(f"Puntos acumulados - {frat_sel}")
+        ax2.set_ylabel("Puntos")
+        plt.xticks(rotation=45, ha="right")
+        st.pyplot(fig2)
