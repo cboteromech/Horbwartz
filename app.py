@@ -351,6 +351,14 @@ st.dataframe(df_filtrado, use_container_width=True)
 
 g1, g2 = st.columns(2)
 
+# 👉 Aquí agregamos el total de la fraternidad
+if frat_sel != "Todas":
+    total_frat = df_filtrado["Total"].sum()
+    st.info(f"🏠 **Total de puntos de {frat_sel}: {total_frat}**")
+
+st.dataframe(df_filtrado, use_container_width=True)
+
+g1, g2 = st.columns(2)
 # Gráfico alumno
 if estudiante_label:
     with g1:
