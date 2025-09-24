@@ -24,17 +24,7 @@ df = leer_csv(FILE)
 st.title("🎓 Portal del Estudiante - Sistema Hogwarts")
 
 # Entrada del código
-# Lista de estudiantes disponibles (código + nombre)
-opciones = df.apply(lambda r: f"{r['NombreCompleto']} ({r['Código']})", axis=1).tolist()
-
-# Selector de estudiante
-seleccion = st.selectbox("Selecciona tu nombre o código:", [""] + opciones)
-
-if seleccion != "":
-    # Extraer código desde la opción elegida
-    codigo = seleccion.split("(")[-1].replace(")", "").strip()
-    alumno = df[df["Código"].astype(str) == codigo]
-
+codigo = st.text_input("Ingresa tu código estudiantil:")
 
 if codigo:
     alumno = df[df["Código"].astype(str) == str(codigo).strip()]
