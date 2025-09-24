@@ -379,3 +379,24 @@ if frat_sel != "Todas":
         ax2.set_ylabel("Puntos")
         plt.xticks(rotation=45, ha="right")
         st.pyplot(fig2)
+
+# =======================================================
+# Resumen por fraternidad
+# =======================================================
+st.subheader("📋 Resumen por fraternidad")
+
+# Contar estudiantes y sumar puntos por fraternidad
+resumen_frat = (
+    df.groupby("Fraternidad")
+      .agg(Estudiantes=("Código", "count"),
+           PuntosTotales=("Total", "sum"))
+      .reset_index()
+      .sort_values("PuntosTotales", ascending=False)
+)
+
+st.dataframe(resumen_frat, use_container_width=True)
+
+# Mostrar también en texto
+for _, row in resumen_frat.iterrows():
+    st.write(f"🏠 **{row['Fraternidad']}** → {row['Estudiantes']} estudiantes | {row['PuntosTotales']} puntos totales")
+
