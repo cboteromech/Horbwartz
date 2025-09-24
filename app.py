@@ -304,6 +304,45 @@ if estudiante_label:
 # =======================================================
 if estudiante_label:
     with st.expander("➕➖ Asignar puntos", expanded=st.session_state.get("abrir_puntos", False)):
+        
+        # =======================================================
+        # Asignar puntos a fraternidad completa
+        # =======================================================
+        with st.expander("🏠 Asignar puntos a una fraternidad completa", expanded=False):
+            frat_target = st.selectbox("Selecciona fraternidad", FRATERNIDADES, key="frat_bulk_select")
+            cat_bulk = st.selectbox("Categoría", CATEGORIAS, key="frat_bulk_categoria")
+            pts_bulk = st.number_input("Puntos (+/-)", step=1, value=1, min_value=-50, max_value=50, key="frat_bulk_pts")
+
+            if st.button("Aplicar a toda la fraternidad", key="btn_bulk_frat"):
+                df.loc[df["Fraternidad"] == frat_target, cat_bulk] += int(pts_bulk)
+                df["Total"] = df[CATEGORIAS].sum(axis=1)
+                guardar_csv_seguro(df, FILE)
+                st.success(f"✅ {pts_bulk:+} puntos añadidos a todos los estudiantes de **{frat_target}** en **{cat_bulk}**.")
+                st.rerun()
+
+        # =======================================================
+        # Asignar puntos a un grupo de estudiantes
+        # =======================================================
+        with st.expander("👥 Asignar puntos a varios estudiantes", expanded=False):
+            opciones_estudiantes = df["Código"].astype(str).tolist()
+            seleccionados = st.multiselect(
+                "Selecciona estudiantes",
+                opciones_estudiantes,
+                format_func=make_label,
+                key="bulk_estudiantes"
+            )
+
+            cat_bulk2 = st.selectbox("Categoría", CATEGORIAS, key="bulk_categoria")
+            pts_bulk2 = st.number_input("Puntos (+/-)", step=1, value=1, min_value=-50, max_value=50, key="bulk_pts")
+
+            if st.button("Aplicar a seleccionados", key="btn_bulk_estudiantes"):
+                df.loc[df["Código"].astype(str).isin(seleccionados), cat_bulk2] += int(pts_bulk2)
+                df["Total"] = df[CATEGORIAS].sum(axis=1)
+                guardar_csv_seguro(df, FILE)
+                st.success(f"✅ {pts_bulk2:+} puntos añadidos a {len(seleccionados)} estudiantes en **{cat_bulk2}**.")
+                st.rerun()
+        
+
         # Cerrar auto en el siguiente render
         if st.session_state.get("abrir_puntos", False):
             st.session_state["abrir_puntos"] = False
