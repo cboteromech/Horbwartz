@@ -11,12 +11,37 @@ CATEGORIAS = ["Marca LCB", "Respeto", "Solidaridad", "Honestidad", "Gratitud", "
 @st.cache_data
 def leer_csv(path: str) -> pd.DataFrame:
     df = pd.read_csv(path, sep=";", encoding="latin1")
-    # Asegurar columnas numéricas
+
+    # 🔹 Normalizar nombres de columnas
+    df.columns = df.columns.str.strip()   # eliminar espacios
+    df.columns = df.columns.str.replace("ó", "o", regex=False)
+    df.columns = df.columns.str.replace("í", "i", regex=False)
+    df.columns = df.columns.str.replace("Í", "i", regex=False)
+
+    # 🔹 Renombrar a lo esperado
+    renombres = {
+        "Codigo": "Código",
+        "codigo": "Código",
+        "cod": "Código",
+        "nombre": "Nombre",
+        "apellidos": "Apellidos",
+        "fraternidad": "Fraternidad",
+    }
+    df = df.rename(columns={c: renombres.get(c, c) for c in df.columns})
+
+    # 🔹 Asegurar categorías
+    for c in CATEGORIAS:
+        if c not in df.columns:
+            df[c] = 0
+
+    # 🔹 Calcular total y nombre completo
     df[CATEGORIAS] = df[CATEGORIAS].apply(pd.to_numeric, errors="coerce").fillna(0).astype(int)
     df["Total"] = df[CATEGORIAS].sum(axis=1)
     df["NombreCompleto"] = (
         df["Nombre"].astype(str).str.strip() + " " + df["Apellidos"].astype(str).str.strip()
     )
+    df["Código"] = df["Código"].astype(str).str.strip()
+
     return df
 
 # =========================
@@ -33,7 +58,7 @@ df = leer_csv(FILE)
 # Lista de estudiantes disponibles (código + nombre)
 opciones = df.apply(lambda r: f"{r['NombreCompleto']} ({r['Código']})", axis=1).tolist()
 
-# Selector de estudiante (con búsqueda incluida en selectbox)
+# Selector de estudiante
 seleccion = st.selectbox("Selecciona tu nombre o código:", [""] + opciones)
 
 if seleccion != "":
@@ -46,7 +71,9 @@ if seleccion != "":
     else:
         r = alumno.iloc[0]
 
+        # =========================
         # Perfil del estudiante
+        # =========================
         st.success(
             f"👤 **{r['NombreCompleto']}** | 🪪 Código: {r['Código']} | "
             f"🏠 Fraternidad: {r['Fraternidad']} | 🧮 Total: {int(r['Total'])}"
