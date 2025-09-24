@@ -347,9 +347,6 @@ if estudiante_label:
 st.subheader("📊 Tabla de puntos")
 frat_sel = st.selectbox("Filtrar por fraternidad", ["Todas"] + FRATERNIDADES, key="filtro_frat")
 df_filtrado = df if frat_sel == "Todas" else df[df["Fraternidad"] == frat_sel]
-st.dataframe(df_filtrado, use_container_width=True)
-
-g1, g2 = st.columns(2)
 
 # 👉 Aquí agregamos el total de la fraternidad
 if frat_sel != "Todas":
