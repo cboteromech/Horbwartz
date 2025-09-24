@@ -11,9 +11,12 @@ CATEGORIAS = ["Marca LCB", "Respeto", "Solidaridad", "Honestidad", "Gratitud", "
 @st.cache_data
 def leer_csv(path: str) -> pd.DataFrame:
     df = pd.read_csv(path, sep=";", encoding="latin1")
+    # Asegurar columnas numéricas
     df[CATEGORIAS] = df[CATEGORIAS].apply(pd.to_numeric, errors="coerce").fillna(0).astype(int)
     df["Total"] = df[CATEGORIAS].sum(axis=1)
-    df["NombreCompleto"] = df["Nombre"].astype(str).str.strip() + " " + df["Apellidos"].astype(str).str.strip()
+    df["NombreCompleto"] = (
+        df["Nombre"].astype(str).str.strip() + " " + df["Apellidos"].astype(str).str.strip()
+    )
     return df
 
 df = leer_csv(FILE)
@@ -23,11 +26,16 @@ df = leer_csv(FILE)
 # =========================
 st.title("🎓 Portal del Estudiante - Sistema Hogwarts")
 
-# Entrada del código
-codigo = st.text_input("Ingresa tu código estudiantil:")
+# Lista de estudiantes disponibles (código + nombre)
+opciones = df.apply(lambda r: f"{r['NombreCompleto']} ({r['Código']})", axis=1).tolist()
 
-if codigo:
-    alumno = df[df["Código"].astype(str) == str(codigo).strip()]
+# Selector de estudiante (con búsqueda incluida en selectbox)
+seleccion = st.selectbox("Selecciona tu nombre o código:", [""] + opciones)
+
+if seleccion != "":
+    # Extraer código desde la opción elegida
+    codigo = seleccion.split("(")[-1].replace(")", "").strip()
+    alumno = df[df["Código"].astype(str) == codigo]
 
     if alumno.empty:
         st.error("⚠️ No se encontró ningún estudiante con ese código.")
