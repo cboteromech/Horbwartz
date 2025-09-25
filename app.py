@@ -136,9 +136,11 @@ if seleccion != "":
 
         # ✏️ Editar datos
         with st.expander("✏️ Editar datos del estudiante"):
-            nuevo_nombre = st.text_input("Nombre", r["Nombre"])
-            nuevo_apellido = st.text_input("Apellidos", r["Apellidos"])
-            nueva_frat = st.selectbox("Fraternidad", FRATERNIDADES, index=FRATERNIDADES.index(r["Fraternidad"]))
+            nuevo_nombre = st.text_input("Nombre", r["Nombre"], key=f"nombre_{codigo}")
+            nuevo_apellido = st.text_input("Apellidos", r["Apellidos"], key=f"apellidos_{codigo}")
+            nueva_frat = st.selectbox("Fraternidad", FRATERNIDADES, 
+                          index=FRATERNIDADES.index(r["Fraternidad"]), 
+                          key=f"frat_{codigo}")
 
             if st.button("💾 Guardar cambios"):
                 actualizar_estudiante(codigo, "Nombre", nuevo_nombre.strip())
