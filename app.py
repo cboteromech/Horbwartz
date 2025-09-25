@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 from sqlalchemy import create_engine, text
+from supabase import create_client, Client
+
 
 # =========================
 # ⚙️ Configuración general
@@ -21,6 +23,38 @@ engine = create_engine(
     f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
     pool_pre_ping=True
 )
+
+# =========================
+# 🔑 Autenticación Supabase
+# =========================
+url: str = st.secrets["SUPABASE_URL"]
+key: str = st.secrets["SUPABASE_KEY"]
+supabase: Client = create_client(url, key)
+
+# =========================
+# 📌 Login
+# =========================
+if "user" not in st.session_state:
+    st.sidebar.title("Acceso profesores")
+    email = st.sidebar.text_input("Correo", key="email")
+    password = st.sidebar.text_input("Contraseña", type="password", key="password")
+
+    if st.sidebar.button("Iniciar sesión"):
+        try:
+            user = supabase.auth.sign_in_with_password({"email": email, "password": password})
+            st.session_state["user"] = user.user
+            st.success(f"✅ Bienvenido {email}")
+            st.rerun()
+        except Exception as e:
+            st.error(f"❌ Error: {e}")
+    st.stop()  # 🚦 Si no está logueado, no carga el resto de la app
+else:
+    st.sidebar.write(f"Conectado como {st.session_state['user'].email}")
+    if st.sidebar.button("Cerrar sesión"):
+        supabase.auth.sign_out()
+        del st.session_state["user"]
+        st.rerun()
+
 
 try:
     with engine.connect() as conn:
