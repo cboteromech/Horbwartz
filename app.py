@@ -11,14 +11,25 @@ st.set_page_config(page_title="Sistema Hogwarts", page_icon="🏆", layout="wide
 # =========================
 # Conexión a Supabase Postgres
 # =========================
-# ⚠️ Reemplaza con tu contraseña real de Supabase
+from sqlalchemy import create_engine
+
 DB_USER = st.secrets["DB_USER"]
 DB_PASS = st.secrets["DB_PASS"]
 DB_HOST = st.secrets["DB_HOST"]
 DB_PORT = st.secrets["DB_PORT"]
 DB_NAME = st.secrets["DB_NAME"]
 
-engine = create_engine(f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
+engine = create_engine(
+    f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
+    pool_pre_ping=True
+)
+
+try:
+    with engine.connect() as conn:
+        st.success("✅ Conexión a Supabase exitosa")
+except Exception as e:
+    st.error(f"❌ Error al conectar: {e}")
+
 
 # Categorías de puntos
 CATEGORIAS = ["Marca LCB", "Respeto", "Solidaridad", "Honestidad", "Gratitud", "Corresponsabilidad"]
