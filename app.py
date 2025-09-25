@@ -4,15 +4,13 @@ import matplotlib.pyplot as plt
 from sqlalchemy import create_engine, text
 
 # =========================
-# Configuración general
+# ⚙️ Configuración general
 # =========================
 st.set_page_config(page_title="Sistema Hogwarts", page_icon="🏆", layout="wide")
 
 # =========================
-# Conexión a Supabase Postgres
+# 🔗 Conexión a Supabase Postgres
 # =========================
-from sqlalchemy import create_engine
-
 DB_USER = st.secrets["DB_USER"]
 DB_PASS = st.secrets["DB_PASS"]
 DB_HOST = st.secrets["DB_HOST"]
@@ -30,18 +28,17 @@ try:
 except Exception as e:
     st.error(f"❌ Error al conectar: {e}")
 
-
 # Categorías de puntos
 CATEGORIAS = ["Marca LCB", "Respeto", "Solidaridad", "Honestidad", "Gratitud", "Corresponsabilidad"]
 
 # =========================
-# Funciones DB
+# 📂 Funciones DB
 # =========================
 def leer_estudiantes() -> pd.DataFrame:
     query = "SELECT * FROM estudiantes;"
     df = pd.read_sql(query, engine)
 
-    # Normalizar datos
+    # Normalización
     for c in CATEGORIAS:
         if c not in df.columns:
             df[c] = 0
@@ -86,18 +83,18 @@ def actualizar_puntos_grupo(codigos, categoria, delta):
                      {"delta": delta, "codigos": codigos})
 
 # =========================
-# App principal
+# 🏆 App principal
 # =========================
 df = leer_estudiantes()
 frats_default = ["Gryffindor", "Slytherin", "Hufflepuff", "Ravenclaw"]
 FRATERNIDADES = sorted(set(df["Fraternidad"].dropna().astype(str).tolist() + frats_default))
 
-st.title("🏆 Sistema de Puntos Hogwarts (Supabase)")
+st.title("🏆 Sistema de Puntos Hogwarts")
 
 # =======================================================
-# Añadir estudiante
+# 👤 Gestión de estudiantes
 # =======================================================
-with st.expander("➕ Añadir nuevo estudiante", expanded=False):
+with st.expander("➕ Añadir nuevo estudiante"):
     c1, c2, c3, c4 = st.columns(4)
     with c1: codigo = st.text_input("Código")
     with c2: nombre = st.text_input("Nombre")
@@ -115,57 +112,43 @@ with st.expander("➕ Añadir nuevo estudiante", expanded=False):
             st.rerun()
 
 # =======================================================
-# Buscar estudiante
+# 🔎 Buscar y editar estudiante
 # =======================================================
+st.header("🔎 Buscar estudiante")
 opciones = df.apply(lambda r: f"{r['NombreCompleto']} ({r['Código']})", axis=1).tolist()
 seleccion = st.selectbox("Selecciona estudiante:", [""] + opciones)
 
 if seleccion != "":
     codigo = seleccion.split("(")[-1].replace(")", "").strip()
     alumno = df[df["Código"] == codigo]
+
     if alumno.empty:
         st.error("No encontrado.")
     else:
         r = alumno.iloc[0]
         st.success(f"👤 {r['NombreCompleto']} | 🏠 {r['Fraternidad']} | 🧮 {r['Total']} puntos")
 
-        # -------------------------
-        # Gráfico alumno
-        # -------------------------
-        st.subheader("📈 Puntos individuales")
-        fig, ax = plt.subplots(figsize=(5,3))  # más pequeño
+        # 📊 Gráfico individual
+        st.subheader("📈 Puntos del estudiante")
+        fig, ax = plt.subplots(figsize=(5,3))
         r[CATEGORIAS].plot(kind="bar", ax=ax, color="skyblue")
-        ax.set_ylabel("Puntos")
-        ax.set_xlabel("")
-        st.pyplot(fig, use_container_width=False)
+        st.pyplot(fig)
 
-        # -------------------------
-        # Editar fraternidad
-        # -------------------------
-        nueva_frat = st.selectbox("Cambiar fraternidad", FRATERNIDADES, index=FRATERNIDADES.index(r["Fraternidad"]))
-        if st.button("💾 Guardar fraternidad"):
-            actualizar_estudiante(codigo, "Fraternidad", nueva_frat)
-            st.success("Fraternidad actualizada.")
-            st.rerun()
+        # ✏️ Editar datos
+        with st.expander("✏️ Editar datos del estudiante"):
+            nuevo_nombre = st.text_input("Nombre", r["Nombre"])
+            nuevo_apellido = st.text_input("Apellidos", r["Apellidos"])
+            nueva_frat = st.selectbox("Fraternidad", FRATERNIDADES, index=FRATERNIDADES.index(r["Fraternidad"]))
 
-        # -------------------------
-        # Editar datos básicos
-        # -------------------------
-        st.subheader("✏️ Editar datos del estudiante")
-        nuevo_nombre = st.text_input("Nombre", r["Nombre"])
-        nuevo_apellido = st.text_input("Apellidos", r["Apellidos"])
-        nueva_frat = st.selectbox("Fraternidad", FRATERNIDADES, index=FRATERNIDADES.index(r["Fraternidad"]))
+            if st.button("💾 Guardar cambios"):
+                actualizar_estudiante(codigo, "Nombre", nuevo_nombre.strip())
+                actualizar_estudiante(codigo, "Apellidos", nuevo_apellido.strip())
+                actualizar_estudiante(codigo, "Fraternidad", nueva_frat.strip())
+                st.success("✅ Datos actualizados correctamente.")
+                st.rerun()
 
-        if st.button("💾 Guardar cambios en estudiante"):
-            actualizar_estudiante(codigo, "Nombre", nuevo_nombre.strip())
-            actualizar_estudiante(codigo, "Apellidos", nuevo_apellido.strip())
-            actualizar_estudiante(codigo, "Fraternidad", nueva_frat.strip())
-            st.success("✅ Datos actualizados correctamente.")
-            st.rerun()
-
-        # -------------------------
-        # Asignar puntos
-        # -------------------------
+        # ➕ Asignar puntos individuales
+        st.subheader("➕ Asignar puntos")
         categoria = st.selectbox("Categoría", CATEGORIAS)
         delta = st.number_input("Puntos (+/-)", -10, 10, 1)
         if st.button("Actualizar puntos"):
@@ -174,9 +157,9 @@ if seleccion != "":
             st.rerun()
 
 # =======================================================
-# Asignar puntos en bloque
+# ⚡ Asignación masiva de puntos
 # =======================================================
-with st.expander("🏠 Asignar puntos a fraternidad completa", expanded=False):
+with st.expander("🏠 Asignar puntos a una fraternidad"):
     frat_target = st.selectbox("Selecciona fraternidad", FRATERNIDADES, key="bulk_frat")
     cat_bulk = st.selectbox("Categoría", CATEGORIAS, key="bulk_frat_cat")
     pts_bulk = st.number_input("Puntos (+/-)", step=1, value=1, min_value=-50, max_value=50, key="bulk_frat_pts")
@@ -185,7 +168,7 @@ with st.expander("🏠 Asignar puntos a fraternidad completa", expanded=False):
         st.success(f"✅ {pts_bulk:+} puntos añadidos a todos en {frat_target}.")
         st.rerun()
 
-with st.expander("👥 Asignar puntos a varios estudiantes", expanded=False):
+with st.expander("👥 Asignar puntos a varios estudiantes"):
     opciones_codigos = df["Código"].astype(str).tolist()
     seleccionados = st.multiselect("Selecciona estudiantes", opciones_codigos,
                                    format_func=lambda c: df[df["Código"] == c]["NombreCompleto"].iloc[0])
@@ -197,14 +180,15 @@ with st.expander("👥 Asignar puntos a varios estudiantes", expanded=False):
         st.rerun()
 
 # =======================================================
-# Tabla y gráficas
+# 📊 Reportes y análisis
 # =======================================================
-st.subheader("📊 Tabla de estudiantes")
+st.header("📊 Reportes")
+
+# Tabla completa
+st.subheader("📋 Tabla de estudiantes")
 st.dataframe(df, use_container_width=True)
 
-# =======================================================
 # Resumen por fraternidad
-# =======================================================
 st.subheader("📋 Resumen por fraternidad")
 resumen = (
     df.groupby("Fraternidad")
@@ -214,24 +198,30 @@ resumen = (
 )
 st.dataframe(resumen, use_container_width=True)
 
-for _, row in resumen.iterrows():
-    st.write(f"🏠 **{row['Fraternidad']}** → {row['Estudiantes']} estudiantes | {row['PuntosTotales']} puntos")
-
-# =======================================================
-# Ranking gráfico de casas
-# =======================================================
+# Ranking gráfico
 st.subheader("🏆 Ranking de casas")
 fig2, ax2 = plt.subplots(figsize=(6,3))
 resumen.plot(x="Fraternidad", y="PuntosTotales", kind="barh", ax=ax2, color="gold")
 st.pyplot(fig2)
 
-
-# =======================================================
-# Tabla filtrada por fraternidad
-# =======================================================
+# Tabla filtrada
 st.subheader("📊 Ver estudiantes por fraternidad")
 frat_filtro = st.selectbox("Elige una fraternidad", [""] + FRATERNIDADES)
-
 if frat_filtro:
     df_frat = df[df["Fraternidad"] == frat_filtro]
     st.dataframe(df_frat, use_container_width=True)
+
+# Valores fuertes de cada casa
+st.subheader("💪 Valores fuertes por casa")
+resumen_valores = df.groupby("Fraternidad")[CATEGORIAS].sum().reset_index()
+frat_valores = st.selectbox("Selecciona una fraternidad para ver sus valores", FRATERNIDADES)
+
+if frat_valores:
+    datos_casa = resumen_valores[resumen_valores["Fraternidad"] == frat_valores]
+    valores = datos_casa[CATEGORIAS].iloc[0]
+
+    fig3, ax3 = plt.subplots(figsize=(6,3))
+    valores.plot(kind="bar", ax=ax3, color="skyblue")
+    ax3.set_ylabel("Puntos acumulados")
+    ax3.set_title(f"Valores de {frat_valores}")
+    st.pyplot(fig3)
