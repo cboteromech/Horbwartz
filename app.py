@@ -133,9 +133,11 @@ if seleccion != "":
         # Gráfico alumno
         # -------------------------
         st.subheader("📈 Puntos individuales")
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(5,3))  # más pequeño
         r[CATEGORIAS].plot(kind="bar", ax=ax, color="skyblue")
-        st.pyplot(fig)
+        ax.set_ylabel("Puntos")
+        ax.set_xlabel("")
+        st.pyplot(fig, use_container_width=False)
 
         # -------------------------
         # Editar fraternidad
@@ -144,6 +146,21 @@ if seleccion != "":
         if st.button("💾 Guardar fraternidad"):
             actualizar_estudiante(codigo, "Fraternidad", nueva_frat)
             st.success("Fraternidad actualizada.")
+            st.rerun()
+
+        # -------------------------
+        # Editar datos básicos
+        # -------------------------
+        st.subheader("✏️ Editar datos del estudiante")
+        nuevo_nombre = st.text_input("Nombre", r["Nombre"])
+        nuevo_apellido = st.text_input("Apellidos", r["Apellidos"])
+        nueva_frat = st.selectbox("Fraternidad", FRATERNIDADES, index=FRATERNIDADES.index(r["Fraternidad"]))
+
+        if st.button("💾 Guardar cambios en estudiante"):
+            actualizar_estudiante(codigo, "Nombre", nuevo_nombre.strip())
+            actualizar_estudiante(codigo, "Apellidos", nuevo_apellido.strip())
+            actualizar_estudiante(codigo, "Fraternidad", nueva_frat.strip())
+            st.success("✅ Datos actualizados correctamente.")
             st.rerun()
 
         # -------------------------
@@ -199,3 +216,22 @@ st.dataframe(resumen, use_container_width=True)
 
 for _, row in resumen.iterrows():
     st.write(f"🏠 **{row['Fraternidad']}** → {row['Estudiantes']} estudiantes | {row['PuntosTotales']} puntos")
+
+# =======================================================
+# Ranking gráfico de casas
+# =======================================================
+st.subheader("🏆 Ranking de casas")
+fig2, ax2 = plt.subplots(figsize=(6,3))
+resumen.plot(x="Fraternidad", y="PuntosTotales", kind="barh", ax=ax2, color="gold")
+st.pyplot(fig2)
+
+
+# =======================================================
+# Tabla filtrada por fraternidad
+# =======================================================
+st.subheader("📊 Ver estudiantes por fraternidad")
+frat_filtro = st.selectbox("Elige una fraternidad", [""] + FRATERNIDADES)
+
+if frat_filtro:
+    df_frat = df[df["Fraternidad"] == frat_filtro]
+    st.dataframe(df_frat, use_container_width=True)
