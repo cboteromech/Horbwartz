@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 # =========================
 # ⚙️ Configuración general
 # =========================
-st.set_page_config(page_title="🎓 Portal del Estudiante", page_icon="📘", layout="wide")
+st.set_page_config(page_title="🎓 Portal del Estudiante", page_icon="📘", layout="centered")
 
 # =========================
 # 🔗 Conexión a Supabase Postgres
@@ -69,44 +69,54 @@ if seleccion != "":
     else:
         r = alumno.iloc[0]
 
-        # Perfil
-        st.success(
-            f"👤 **{r['NombreCompleto']}** | 🪪 Código: {r['Código']} | "
-            f"🏠 Fraternidad: {r['Fraternidad']} | 🧮 Total: {int(r['Total'])}"
+        # =========================
+        # Perfil destacado
+        # =========================
+        st.markdown(
+            f"""
+            ### 👤 {r['NombreCompleto']}  
+            🪪 **Código:** {r['Código']}  
+            🏠 **Fraternidad:** {r['Fraternidad']}  
+            🧮 **Total puntos:** {int(r['Total'])}
+            """
         )
 
-        # Mostrar puntos en tabla + gráfico
+        # =========================
+        # Tus puntos
+        # =========================
         st.subheader("📊 Tus puntos por categoría")
-        puntos_df = pd.DataFrame(r[CATEGORIAS]).reset_index()
-        puntos_df.columns = ["Categoría", "Puntos"]
 
-        c1, c2 = st.columns([1, 2])
-        with c1:
-            st.table(puntos_df)  # ✅ Tabla compacta con los números
-        with c2:
-            fig, ax = plt.subplots(figsize=(4, 3))  # más pequeño
-            r[CATEGORIAS].plot(kind="bar", ax=ax, color="skyblue")
-            ax.set_ylabel("Puntos")
-            plt.xticks(rotation=30, ha="right")
-            st.pyplot(fig)
+        puntos_df = pd.DataFrame({
+            "Categoría": CATEGORIAS,
+            "Puntos": [int(r[c]) for c in CATEGORIAS]
+        })
 
+        st.table(puntos_df)
+
+        fig, ax = plt.subplots(figsize=(5, 3))
+        r[CATEGORIAS].plot(kind="bar", ax=ax, color="skyblue")
+        ax.set_ylabel("Puntos")
+        ax.set_title("Tus puntos por categoría")
+        plt.xticks(rotation=30, ha="right")
+        st.pyplot(fig)
+
+        # =========================
         # Resumen de la fraternidad
+        # =========================
+        st.subheader(f"🏠 Resumen de la fraternidad: {r['Fraternidad']}")
+
         frat_df = df[df["Fraternidad"] == r["Fraternidad"]]
         total_frat = frat_df["Total"].sum()
-        st.subheader(f"🏠 Resumen de tu fraternidad: {r['Fraternidad']}")
         st.info(f"👥 {len(frat_df)} estudiantes | 🧮 {total_frat} puntos en total")
 
-        # Mostrar tabla y gráfico de la fraternidad
         frat_vals = frat_df[CATEGORIAS].sum().reset_index()
         frat_vals.columns = ["Categoría", "Puntos"]
 
-        c3, c4 = st.columns([1, 2])
-        with c3:
-            st.table(frat_vals)  # ✅ Tabla con valores exactos de la fraternidad
-        with c4:
-            fig2, ax2 = plt.subplots(figsize=(4, 3))
-            frat_df[CATEGORIAS].sum().plot(kind="bar", ax=ax2, color="orange")
-            ax2.set_ylabel("Puntos")
-            ax2.set_title(f"Puntos acumulados - {r['Fraternidad']}")
-            plt.xticks(rotation=30, ha="right")
-            st.pyplot(fig2)
+        st.table(frat_vals)
+
+        fig2, ax2 = plt.subplots(figsize=(5, 3))
+        frat_df[CATEGORIAS].sum().plot(kind="bar", ax=ax2, color="orange")
+        ax2.set_ylabel("Puntos")
+        ax2.set_title(f"Puntos acumulados en {r['Fraternidad']}")
+        plt.xticks(rotation=30, ha="right")
+        st.pyplot(fig2)
