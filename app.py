@@ -12,11 +12,11 @@ st.set_page_config(page_title="Sistema Hogwarts", page_icon="🏆", layout="wide
 # Conexión a Supabase Postgres
 # =========================
 # ⚠️ Reemplaza con tu contraseña real de Supabase
-DB_USER = st.secrets["postgres"]
-DB_PASS = st.secrets["Socralia*0705"]
-DB_HOST = st.secrets["db.pgrfwakeiapwimbmulfo.supabase.co"]
-DB_PORT = st.secrets["5432"]
-DB_NAME = st.secrets["postgres"]
+DB_USER = st.secrets["DB_USER"]
+DB_PASS = st.secrets["DB_PASS"]
+DB_HOST = st.secrets["DB_HOST"]
+DB_PORT = st.secrets["DB_PORT"]
+DB_NAME = st.secrets["DB_NAME"]
 
 engine = create_engine(f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
 
