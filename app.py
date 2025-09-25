@@ -34,8 +34,15 @@ CATEGORIAS = ["Marca LCB", "Respeto", "Solidaridad", "Honestidad", "Gratitud", "
 # =========================
 # 📂 Funciones DB
 # =========================
-def leer_estudiantes() -> pd.DataFrame:
-    query = "SELECT * FROM estudiantes;"
+@st.cache_data(ttl=60)  # ⚡ cachea lecturas durante 60 segundos
+def leer_estudiantes(codigo=None, frat=None) -> pd.DataFrame:
+    if codigo:
+        query = f'SELECT * FROM estudiantes WHERE "Código" = \'{codigo}\';'
+    elif frat:
+        query = f'SELECT * FROM estudiantes WHERE "Fraternidad" = \'{frat}\';'
+    else:
+        query = "SELECT * FROM estudiantes;"
+    
     df = pd.read_sql(query, engine)
 
     # Normalización
@@ -48,10 +55,11 @@ def leer_estudiantes() -> pd.DataFrame:
         df["Total"] = 0
     df["Total"] = df[CATEGORIAS].sum(axis=1)
 
-    df["NombreCompleto"] = (
-        df["Nombre"].astype(str).str.strip() + " " + df["Apellidos"].astype(str).str.strip()
-    ).str.strip()
-    df["Código"] = df["Código"].astype(str).str.strip()
+    if not df.empty:
+        df["NombreCompleto"] = (
+            df["Nombre"].astype(str).str.strip() + " " + df["Apellidos"].astype(str).str.strip()
+        ).str.strip()
+        df["Código"] = df["Código"].astype(str).str.strip()
     return df
 
 def insertar_estudiante(codigo, nombre, apellido, fraternidad):
@@ -61,26 +69,31 @@ def insertar_estudiante(codigo, nombre, apellido, fraternidad):
             "Solidaridad","Honestidad","Gratitud","Corresponsabilidad","Total")
             VALUES (:codigo, :nombre, :apellido, :frat, 0,0,0,0,0,0,0)
         """), {"codigo": codigo, "nombre": nombre, "apellido": apellido, "frat": fraternidad})
+        st.cache_data.clear()
 
 def actualizar_estudiante(codigo, campo, valor):
     with engine.begin() as conn:
         conn.execute(text(f'UPDATE estudiantes SET "{campo}" = :valor WHERE "Código" = :codigo'),
                      {"valor": valor, "codigo": codigo})
+        st.cache_data.clear()
 
 def actualizar_puntos(codigo, categoria, delta):
     with engine.begin() as conn:
         conn.execute(text(f'UPDATE estudiantes SET "{categoria}" = "{categoria}" + :delta WHERE "Código" = :codigo'),
                      {"delta": delta, "codigo": codigo})
+        st.cache_data.clear()
 
 def actualizar_puntos_frat(frat, categoria, delta):
     with engine.begin() as conn:
         conn.execute(text(f'UPDATE estudiantes SET "{categoria}" = "{categoria}" + :delta WHERE "Fraternidad" = :frat'),
                      {"delta": delta, "frat": frat})
+        st.cache_data.clear()
 
 def actualizar_puntos_grupo(codigos, categoria, delta):
     with engine.begin() as conn:
         conn.execute(text(f'UPDATE estudiantes SET "{categoria}" = "{categoria}" + :delta WHERE "Código" = ANY(:codigos)'),
                      {"delta": delta, "codigos": codigos})
+        st.cache_data.clear()
 
 # =========================
 # 🏆 App principal
