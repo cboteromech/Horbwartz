@@ -24,14 +24,14 @@ engine = create_engine(
 )
 
 # =========================
-# 🔑 Autenticación Supabase (debe ir ANTES del login)
+# 🔑 Autenticación Supabase
 # =========================
 url: str = st.secrets["SUPABASE_URL"]
 key: str = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
 
 # =========================
-# 📌 Obtener rol desde la tabla profesores
+# 📌 Obtener rol desde profesores
 # =========================
 def get_profesor(email):
     with engine.connect() as conn:
@@ -51,7 +51,6 @@ def get_profesor(email):
         result = conn.execute(query, {"email": email}).fetchone()
         return result
 
-
 rol, fraternidad_id, colegio_id, profesor_id = None, None, None, None
 nombre_completo, asignatura, area, grados = None, None, None, None
 
@@ -62,8 +61,6 @@ if "user" in st.session_state:
     else:
         st.error("❌ No tienes un rol asignado en este colegio")
         st.stop()
-
-
 
 # =========================
 # 📌 Login
@@ -85,11 +82,9 @@ if "user" not in st.session_state:
 else:
     st.sidebar.write(f"Conectado como {st.session_state['user'].email}")
 
-    # 👉 Aquí obtenemos datos del profesor ANTES de mostrarlos
     profesor_data = get_profesor(st.session_state["user"].email)
     if profesor_data:
         profesor_id, rol, fraternidad_id, colegio_id, nombre_completo, asignatura, area, grados = profesor_data
-
         st.sidebar.markdown("### 👨‍🏫 Perfil del profesor")
         st.sidebar.write(f"**Nombre completo:** {nombre_completo}")
         st.sidebar.write(f"**Rol:** {rol}")
@@ -104,8 +99,6 @@ else:
         supabase.auth.sign_out()
         del st.session_state["user"]
         st.rerun()
-
-
 
 # =========================
 # 📂 Funciones DB
@@ -137,7 +130,6 @@ def leer_historial_puntos(estudiante_id, colegio_id) -> pd.DataFrame:
     with engine.connect() as conn:
         df = pd.read_sql(query, conn, params={"eid": estudiante_id, "cid": colegio_id})
     return df
-
 
 @st.cache_data(ttl=60)
 def leer_valores(colegio_id) -> pd.DataFrame:
@@ -196,7 +188,6 @@ def leer_estadisticas_fraternidades(colegio_id):
         df = pd.read_sql(query, conn, params={"cid": colegio_id})
     return df
 
-
 # =========================
 # 🏆 App principal
 # =========================
@@ -204,13 +195,11 @@ df = leer_resumen_estudiantes(colegio_id)
 
 st.title("🏆 Sistema de Puntos Hogwarts")
 
+# 📊 Estadísticas
 st.header("📊 Estadísticas generales del colegio")
-
 stats = leer_estadisticas_fraternidades(colegio_id)
-
 if not stats.empty:
     st.dataframe(stats, use_container_width=True)
-
     fig, ax = plt.subplots(figsize=(6,3))
     stats.plot(kind="bar", x="fraternidad", y="total_puntos", ax=ax, color="orange", legend=False)
     ax.set_ylabel("Puntos")
@@ -219,106 +208,16 @@ if not stats.empty:
 else:
     st.info("ℹ️ No hay puntos registrados todavía.")
 
-
 # =======================================================
-# 🔎 Buscar estudiante
-# =======================================================
-st.header("🔎 Buscar estudiante")
-opciones = (
-    df[["estudiante_id", "codigo", "nombre", "apellidos"]]
-    .drop_duplicates()
-    .apply(lambda r: f"{r['nombre']} {r['apellidos']} ({r['codigo']})", axis=1)
-    .tolist()
-)
-seleccion = st.selectbox("Selecciona estudiante:", [""] + opciones)
-
-
-if seleccion != "":
-    codigo = seleccion.split("(")[-1].replace(")", "").strip()
-    alumno = df[df["codigo"] == codigo]
-
-    if alumno.empty:
-        st.error("No encontrado.")
-    else:
-        r = alumno.iloc[0]
-        st.subheader(f"👤 {r['nombre']} {r['apellidos']} | 🎓 {r['grado']} | 🏠 {r['fraternidad']}")
-
-        # =========================
-        # Totales del estudiante
-        # =========================
-        valores_df = leer_valores(colegio_id)  # todos los valores del colegio
-        df_estudiante = df[df["estudiante_id"] == r["estudiante_id"]][["valor", "puntos"]]
-
-        totales = (
-            valores_df.merge(
-                df_estudiante,
-                how="left",
-                left_on="nombre",
-                right_on="valor"
-            )
-            .fillna({"puntos": 0})
-        )
-
-        # Normalizamos nombres de columnas
-        totales = totales.rename(columns={"nombre": "valor_nombre"})[["valor_nombre", "puntos"]]
-
-        # Agrupamos para garantizar único valor por categoría
-        totales = totales.groupby("valor_nombre")["puntos"].sum()
-
-        # Ahora 'totales' es una Serie con índice = nombre del valor
-        total_general = totales.sum()
-
-        st.markdown(f"### 🧮 Total de puntos: **{total_general}**")
-
-        # Mostrar tabla con todos los valores
-        tabla = totales.reset_index()
-        tabla.columns = ["Valor", "Puntos"]
-        st.dataframe(tabla, use_container_width=True)
-
-        # Gráfico de barras
-        if not totales.empty:
-            fig, ax = plt.subplots(figsize=(6,3))
-            totales.plot(kind="bar", ax=ax, color="skyblue")
-            ax.set_ylabel("Puntos")
-            ax.set_title("Distribución de valores")
-            st.pyplot(fig)
-        else:
-            st.info("ℹ️ Este estudiante aún no tiene puntos asignados.")
-
-
-
-
-        # =========================
-        # ➕ Asignar puntos
-        # =========================
-        st.subheader("➕ Asignar puntos")
-
-        valores_df = leer_valores(colegio_id)
-
-        if valores_df.empty:
-            st.warning("⚠️ Este colegio aún no tiene valores definidos.")
-        else:
-            categoria = st.selectbox("Categoría", valores_df["nombre"].tolist())
-            delta = st.number_input("Puntos (+/-)", -10, 10, 1)
-            if st.button("Actualizar puntos"):
-                actualizar_puntos(r["estudiante_id"], categoria, delta, profesor_id)
-                st.success(f"{delta:+} puntos añadidos en {categoria}.")
-                st.rerun()
-
-# =======================================================
-# 🔎 Buscador jerárquico por grado y sección
+# 🎓 Buscador jerárquico
 # =======================================================
 st.header("🎓 Buscar estudiante por grado y sección")
-
-# Sacamos los grados únicos (ejemplo: "6A", "6B", "7C")
 grados_unicos = df["grado"].dropna().unique()
-grados_numeros = sorted(set([g[:-1] for g in grados_unicos if len(g) > 1]))  # extrae solo el número
+grados_numeros = sorted(set([g[:-1] for g in grados_unicos if len(g) > 1]))
 grado_sel = st.selectbox("Selecciona el grado:", [""] + grados_numeros)
 
 estudiante_seleccionado = None
-
 if grado_sel != "":
-    # Filtramos secciones de ese grado
     secciones = sorted(set([g[-1] for g in grados_unicos if g.startswith(grado_sel)]))
     seccion_sel = st.selectbox("Selecciona la sección:", [""] + secciones)
 
@@ -332,21 +231,17 @@ if grado_sel != "":
             st.subheader(f"👥 Estudiantes de {grado_completo}")
             st.dataframe(df_filtrado[["codigo", "nombre", "apellidos", "fraternidad", "grado"]], use_container_width=True)
 
-            # Seleccionar estudiante
-            codigos = df_filtrado["codigo"].tolist()
-            codigo_sel = st.selectbox("Selecciona un estudiante:", [""] + codigos)
-
+            codigo_sel = st.selectbox("Selecciona un estudiante:", [""] + df_filtrado["codigo"].tolist())
             if codigo_sel != "":
                 estudiante_seleccionado = df_filtrado[df_filtrado["codigo"] == codigo_sel].iloc[0]
 
 # =======================================================
-# 📌 Mostrar detalles del estudiante seleccionado
+# 📌 Detalles del estudiante
 # =======================================================
 if estudiante_seleccionado is not None:
     r = estudiante_seleccionado
     st.subheader(f"👤 {r['nombre']} {r['apellidos']} | 🎓 {r['grado']} | 🏠 {r['fraternidad']}")
 
-    # Totales
     valores_df = leer_valores(colegio_id)
     totales = (
         valores_df.merge(
@@ -362,60 +257,109 @@ if estudiante_seleccionado is not None:
     total_general = totales.sum()
 
     st.markdown(f"### 🧮 Total de puntos: **{total_general}**")
-
-    # Tabla
     tabla = totales.reset_index()
     tabla.columns = ["Valor", "Puntos"]
     st.dataframe(tabla, use_container_width=True)
 
-    # Gráfico
     fig, ax = plt.subplots(figsize=(6,3))
     totales.plot(kind="bar", ax=ax, color="skyblue")
     ax.set_ylabel("Puntos")
     ax.set_title("Distribución de valores")
     st.pyplot(fig)
 
-    # Asignar puntos
     st.subheader("➕ Asignar puntos")
     categoria = st.selectbox("Categoría", valores_df["nombre"].tolist())
+    delta = st.number_input("Puntos (+/-)", -10, 10, 1)
+    if st.button("Actualizar puntos"):
+        actualizar_puntos(r["estudiante_id"], categoria, delta, profesor_id)
+        st.success(f"{delta:+} puntos añadidos en {categoria}.")
+        st.rerun()
 
-        # =========================
-        # ✏️ Editar datos completos (solo DIRECTOR)
-        # =========================
-# =========================
-# ➕ Añadir nuevo estudiante (solo DIRECTOR)
-# =========================
-        if rol == "director":
-            st.header("✏️ Editar estudiante")
-            with st.form("editar_estudiante"):
-                codigo_edit = st.text_input("Código", value=r["codigo"])
-                nombre_edit = st.text_input("Nombre", value=r["nombre"])
-                apellidos_edit = st.text_input("Apellidos", value=r["apellidos"])
-                grado_edit = st.text_input("Grado", value=r["grado"])
+    # ✏️ Edición del estudiante (solo director)
+    if rol == "director":
+        st.header("✏️ Editar estudiante")
+        with st.form("editar_estudiante"):
+            codigo_edit = st.text_input("Código", value=r["codigo"])
+            nombre_edit = st.text_input("Nombre", value=r["nombre"])
+            apellidos_edit = st.text_input("Apellidos", value=r["apellidos"])
+            grado_edit = st.text_input("Grado", value=r["grado"])
 
-                # Obtener fraternidades disponibles
-                with engine.connect() as conn:
-                    frats = pd.read_sql(
-                        text("SELECT id, nombre FROM fraternidades WHERE colegio_id=:cid"),
-                        conn,
-                        params={"cid": colegio_id}
-                    )
-
-                fraternidad_edit = st.selectbox(
-                    "Fraternidad",
-                    frats["nombre"].tolist(),
-                    index=frats["nombre"].tolist().index(r["fraternidad"]) if r["fraternidad"] in frats["nombre"].tolist() else 0
+            with engine.connect() as conn:
+                frats = pd.read_sql(
+                    text("SELECT id, nombre FROM fraternidades WHERE colegio_id=:cid"),
+                    conn,
+                    params={"cid": colegio_id}
                 )
+            fraternidad_edit = st.selectbox(
+                "Fraternidad",
+                frats["nombre"].tolist(),
+                index=frats["nombre"].tolist().index(r["fraternidad"]) if r["fraternidad"] in frats["nombre"].tolist() else 0
+            )
 
-                submit = st.form_submit_button("💾 Guardar cambios")
-                if submit:
-                    frat_id = frats.loc[frats["nombre"] == fraternidad_edit, "id"].iloc[0]
-                    actualizar_estudiante_full(r["estudiante_id"], codigo_edit, nombre_edit, apellidos_edit, grado_edit, frat_id)
-                    st.success("✅ Estudiante actualizado correctamente.")
-                    st.rerun()
+            submit = st.form_submit_button("💾 Guardar cambios")
+            if submit:
+                frat_id = frats.loc[frats["nombre"] == fraternidad_edit, "id"].iloc[0]
+                actualizar_estudiante_full(r["estudiante_id"], codigo_edit, nombre_edit, apellidos_edit, grado_edit, frat_id)
+                st.success("✅ Estudiante actualizado correctamente.")
+                st.rerun()
 
-       # 📋 Historial de puntos
         st.subheader("📋 Historial de puntos")
-        historial = leer_historial_puntos(r["estudiante_id"], colegio_id)  # 👈 pasa también el colegio_id
+        historial = leer_historial_puntos(r["estudiante_id"], colegio_id)
         st.dataframe(historial, use_container_width=True)
 
+# =======================================================
+# 👨‍🏫 Gestión de profesores (solo director)
+# =======================================================
+if rol == "director":
+    st.header("👨‍🏫 Gestión de profesores")
+
+    with st.form("agregar_profesor"):
+        email_prof = st.text_input("Email del profesor")
+        nombres_prof = st.text_input("Nombres")
+        apellidos_prof = st.text_input("Apellidos")
+        rol_prof = st.selectbox("Rol", ["profesor", "director"])
+        asignatura_prof = st.text_input("Asignatura")
+        area_prof = st.text_input("Área")
+        grados_prof = st.text_input("Grados (ej: 6A,7B)")
+
+        with engine.connect() as conn:
+            frats = pd.read_sql(
+                text("SELECT id, nombre FROM fraternidades WHERE colegio_id=:cid"),
+                conn,
+                params={"cid": colegio_id}
+            )
+        fraternidad_prof = st.selectbox("Fraternidad", frats["nombre"].tolist())
+        submit_prof = st.form_submit_button("➕ Agregar profesor")
+
+        if submit_prof:
+            frat_id = frats.loc[frats["nombre"] == fraternidad_prof, "id"].iloc[0]
+            with engine.begin() as conn:
+                conn.execute(text("""
+                    INSERT INTO profesores (email, nombres, apellidos, rol, asignatura, area, grados, fraternidad_id, colegio_id)
+                    VALUES (:email, :nombres, :apellidos, :rol, :asignatura, :area, :grados, :frat, :colegio)
+                """), {
+                    "email": email_prof,
+                    "nombres": nombres_prof,
+                    "apellidos": apellidos_prof,
+                    "rol": rol_prof,
+                    "asignatura": asignatura_prof,
+                    "area": area_prof,
+                    "grados": grados_prof,
+                    "frat": frat_id,
+                    "colegio": colegio_id
+                })
+            try:
+                supabase.auth.admin.create_user({"email": email_prof, "password": "temporal123", "email_confirm": True})
+                st.success("✅ Profesor agregado y usuario creado en Supabase (contraseña: temporal123)")
+            except Exception as e:
+                st.warning(f"⚠️ Profesor creado en DB, pero error en Supabase: {e}")
+            st.rerun()
+
+    st.subheader("🔑 Resetear contraseña de profesor")
+    email_reset = st.text_input("Email del profesor a resetear")
+    if st.button("Resetear contraseña"):
+        try:
+            supabase.auth.reset_password_email(email_reset)
+            st.success(f"🔑 Email de reseteo enviado a {email_reset}")
+        except Exception as e:
+            st.error(f"❌ Error: {e}")
