@@ -1,5 +1,6 @@
 import streamlit as st
 from supabase import create_client, Client
+import streamlit.components.v1 as components
 
 # =========================
 # 🔗 Conexión a Supabase
@@ -13,40 +14,54 @@ st.title("🔑 Bienvenido al Sistema Hogwarts")
 st.write("Crea tu nueva contraseña para acceder al sistema.")
 
 # =========================
-# 📌 Script para convertir el hash (#) en query params (?)
+# 📌 Script para extraer tokens del hash y guardarlos en localStorage
 # =========================
-st.markdown(
+components.html(
     """
     <script>
-    const hash = window.location.hash.substring(1); 
+    const hash = window.location.hash.substring(1);
     if (hash) {
         const params = new URLSearchParams(hash);
         const access_token = params.get("access_token");
         const refresh_token = params.get("refresh_token");
-        if (access_token) {
-            const query = new URLSearchParams({
-                access_token: access_token,
-                refresh_token: refresh_token
-            });
-            // 👇 Forzar redirección completa con tokens en ?query
-            const baseUrl = window.location.href.split("#")[0];
-            window.location.href = baseUrl + "?" + query.toString();
+        if (access_token && refresh_token) {
+            localStorage.setItem("hogwarts_access_token", access_token);
+            localStorage.setItem("hogwarts_refresh_token", refresh_token);
+            // limpiar hash de la URL
+            window.location.replace(window.location.pathname);
         }
     }
     </script>
     """,
-    unsafe_allow_html=True
+    height=0,
 )
 
 # =========================
-# 📌 Leemos tokens de query_params
+# 📌 Recuperamos tokens desde query_params o localStorage
 # =========================
 access_token = st.query_params.get("access_token")
 refresh_token = st.query_params.get("refresh_token")
 
-# Si todavía no hay token → probablemente el JS aún no terminó el redirect
 if not access_token:
-    st.info("⏳ Procesando invitación... redirigiendo.")
+    # intentar leer desde localStorage con otro truco
+    token_holder = st.empty()
+    components.html(
+        """
+        <script>
+        const access_token = localStorage.getItem("hogwarts_access_token");
+        const refresh_token = localStorage.getItem("hogwarts_refresh_token");
+        if (access_token && refresh_token) {
+            const query = new URLSearchParams({
+                access_token: access_token,
+                refresh_token: refresh_token
+            });
+            window.location.replace(window.location.pathname + "?" + query.toString());
+        }
+        </script>
+        """,
+        height=0,
+    )
+    st.info("⏳ Procesando invitación...")
     st.stop()
 
 # =========================
@@ -69,7 +84,6 @@ with st.form("crear_contrasena"):
                 )
                 supabase.auth.update_user({"password": nueva_password})
                 st.success("✅ Contraseña creada correctamente. Ya puedes iniciar sesión en la página principal.")
-                if st.button("Ir al login"):
-                    st.switch_page("app.py")
+                st.markdown("[🔑 Ir al login](https://hogwartznewteacher.streamlit.app/)")
             except Exception as e:
                 st.error(f"❌ Error al actualizar contraseña: {e}")
