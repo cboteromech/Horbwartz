@@ -3,6 +3,7 @@ from supabase import create_client, Client
 
 st.set_page_config(page_title="Resetear contraseña", page_icon="🔑")
 
+# Conexión a Supabase
 url: str = st.secrets["SUPABASE_URL"]
 key: str = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
@@ -32,15 +33,16 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Leer tokens desde la URL
-params = st.experimental_get_query_params()
-access_token = params.get("access_token", [None])[0]
-refresh_token = params.get("refresh_token", [None])[0]
+# 🔑 Leer tokens desde la URL (usando la nueva API)
+params = st.query_params
+access_token = params.get("access_token", None)
+refresh_token = params.get("refresh_token", None)
 
 if not access_token:
     st.info("⏳ Procesando invitación... espera un momento.")
     st.stop()
 
+# Formulario para resetear la contraseña
 with st.form("reset_password"):
     nueva_pass = st.text_input("Nueva contraseña", type="password")
     confirmar_pass = st.text_input("Confirmar contraseña", type="password")
