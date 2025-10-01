@@ -13,7 +13,7 @@ st.title("🔑 Bienvenido al Sistema Hogwarts")
 st.write("Crea tu nueva contraseña para acceder al sistema.")
 
 # =========================
-# 📌 Capturar access_token del fragmento #
+# 📌 Script para convertir el hash (#) en query params (?)
 # =========================
 st.markdown(
     """
@@ -37,18 +37,15 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# 👇 Si todavía viene con hash, paramos y dejamos que el JS haga el redirect
-if st.query_params.get("access_token") is None and "#" in st.experimental_get_urlquery():  
-    st.stop()
-
 # =========================
-# 📌 Ahora sí leemos tokens
+# 📌 Leemos tokens de query_params
 # =========================
 access_token = st.query_params.get("access_token")
 refresh_token = st.query_params.get("refresh_token")
 
+# Si todavía no hay token → probablemente el JS aún no terminó el redirect
 if not access_token:
-    st.error("❌ No se encontró un token de invitación. Verifica el link de tu correo.")
+    st.info("⏳ Procesando invitación... redirigiendo.")
     st.stop()
 
 # =========================
