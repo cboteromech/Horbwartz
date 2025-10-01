@@ -329,17 +329,16 @@ with tabs[1]:
 
     if ids_texto:
         st.success(f"✅ {len(ids_texto)} estudiante(s) seleccionados")
-        if len(ids_texto) > 1:
-            valores_df = leer_valores(colegio_id)
-            st.subheader("➕ Asignar puntos a seleccionados (texto)")
-            categoria = st.selectbox("Categoría", valores_df["nombre"].tolist(), key="categoria_masiva_texto")
-            delta = st.number_input("Puntos (+/-)", min_value=-50, max_value=50, value=1, step=1, key="delta_masiva_texto")
+        valores_df = leer_valores(colegio_id)
+        st.subheader("➕ Asignar puntos a seleccionados (texto)")
+        categoria = st.selectbox("Categoría", valores_df["nombre"].tolist(), key="categoria_masiva_texto")
+        delta = st.number_input("Puntos (+/-)", min_value=-50, max_value=50, value=1, step=1, key="delta_masiva_texto")
 
-            if st.button("Asignar puntos a seleccionados (texto)", type="primary", use_container_width=True):
-                for est_id in ids_texto:
-                    actualizar_puntos(str(est_id), str(categoria), int(delta), profesor_id)
-                st.success(f"✅ {delta:+} puntos asignados a {len(ids_texto)} estudiantes.")
-                st.rerun()
+        if st.button("Asignar puntos a seleccionados (texto)", type="primary", use_container_width=True):
+            for est_id in ids_texto:
+                actualizar_puntos(str(est_id), str(categoria), int(delta), profesor_id)
+            st.success(f"✅ {delta:+} puntos asignados a {len(ids_texto)} estudiantes.")
+            st.rerun()
 
     # ========================
     # 🎓 Búsqueda jerárquica
@@ -387,21 +386,26 @@ with tabs[1]:
                 ids_seleccionados = seleccionados["estudiante_id"].astype(str).tolist()
 
                 if ids_seleccionados:
-                    st.success(f"✅ {len(ids_seleccionados)} estudiantes seleccionados en jerárquico")
-                    if len(ids_seleccionados) > 1:
-                        valores_df = leer_valores(colegio_id)
-                        st.subheader("➕ Asignar puntos a seleccionados (jerárquico)")
-                        categoria = st.selectbox("Categoría", valores_df["nombre"].tolist(), key="categoria_masiva")
-                        delta = st.number_input("Puntos (+/-)", min_value=-50, max_value=50, value=1, step=1, key="delta_masiva")
+                    st.success(f"✅ {len(ids_seleccionados)} estudiante(s) seleccionado(s) en jerárquico")
+                    valores_df = leer_valores(colegio_id)
+                    st.subheader("➕ Asignar puntos a seleccionados (jerárquico)")
+                    categoria = st.selectbox("Categoría", valores_df["nombre"].tolist(), key="categoria_masiva_jerq")
+                    delta = st.number_input("Puntos (+/-)", min_value=-50, max_value=50, value=1, step=1, key="delta_masiva_jerq")
 
-                        if st.button("Asignar puntos a seleccionados (jerárquico)", type="primary", use_container_width=True):
-                            for est_id in ids_seleccionados:
-                                actualizar_puntos(str(est_id), str(categoria), int(delta), profesor_id)
-                            st.success(f"✅ {delta:+} puntos asignados a {len(ids_seleccionados)} estudiantes.")
-                            st.rerun()
+                    if st.button("Asignar puntos (jerárquico)", type="primary", use_container_width=True):
+                        for est_id in ids_seleccionados:
+                            actualizar_puntos(str(est_id), str(categoria), int(delta), profesor_id)
+                        st.success(f"✅ {delta:+} puntos asignados a {len(ids_seleccionados)} estudiante(s).")
+                        st.rerun()
+
+                    # si hay uno solo → mostrar detalle abajo
+                    if len(ids_seleccionados) == 1:
+                        est_row = df_filtrado.loc[seleccionados.index[0]]
+                        estudiante_seleccionado = est_row
+                        st.session_state["estudiante_sel_id"] = str(est_row["estudiante_id"])
 
     # ========================
-    # Detalle del estudiante (INDIVIDUAL)
+    # Detalle del estudiante (INDIVIDUAL o jerárquico 1)
     # ========================
     if estudiante_seleccionado is None and st.session_state.get("estudiante_sel_id") is not None:
         est_id = st.session_state["estudiante_sel_id"]
@@ -412,11 +416,29 @@ with tabs[1]:
     if estudiante_seleccionado is not None:
         r = estudiante_seleccionado
         st.markdown(f"## 👤 {r['nombre']} {r['apellidos']} | 🎓 {r['grado']} | 🏠 {r['fraternidad']}")
-        valores_df = leer_valores(colegio_id)
 
+        # 👉 Si el rol es director, permitir edición
+        if rol == "director":
+            st.subheader("✏️ Editar datos del estudiante")
+            frats_df = leer_fraternidades(colegio_id)
+            with st.form("editar_estudiante"):
+                codigo_n = st.text_input("Código", value=r["codigo"] or "")
+                nombre_n = st.text_input("Nombre", value=r["nombre"] or "")
+                apellidos_n = st.text_input("Apellidos", value=r["apellidos"] or "")
+                grado_n = st.text_input("Grado", value=r["grado"] or "")
+                frat_n = st.selectbox("Fraternidad", frats_df["nombre"].tolist(), 
+                                      index=frats_df["nombre"].tolist().index(r["fraternidad"]) if r["fraternidad"] in frats_df["nombre"].tolist() else 0)
+                submit_edit = st.form_submit_button("Actualizar estudiante")
+                if submit_edit:
+                    frat_id = int(frats_df.loc[frats_df["nombre"] == frat_n, "id"].iloc[0]) if not frats_df.empty else None
+                    actualizar_estudiante_full(r["estudiante_id"], codigo_n, nombre_n, apellidos_n, grado_n, frat_id)
+                    st.success("✅ Estudiante actualizado.")
+                    st.rerun()
+
+        # 👉 Estadísticas y puntos
+        valores_df = leer_valores(colegio_id)
         df_alumno = df[df["estudiante_id"] == r["estudiante_id"]][["valor", "puntos"]].copy()
         df_alumno["puntos"] = pd.to_numeric(df_alumno["puntos"], errors="coerce").fillna(0)
-
         base = pd.DataFrame({"valor": valores_df["nombre"].tolist()}) if not valores_df.empty else pd.DataFrame({"valor": []})
         totales = (base.merge(df_alumno, on="valor", how="left").fillna({"puntos": 0}))
         totales.rename(columns={"valor": "valor_nombre"}, inplace=True)
@@ -434,25 +456,16 @@ with tabs[1]:
             ax.set_title("Distribución de valores")
             st.pyplot(fig)
 
-        # Asignar puntos individuales
         st.subheader("➕ Asignar puntos al estudiante")
         if valores_df.empty:
             st.info("No hay valores configurados en el colegio.")
         else:
             categoria = st.selectbox("Categoría", valores_df["nombre"].tolist(), key="categoria_asignar")
             delta = st.number_input("Puntos (+/-)", min_value=-50, max_value=50, value=1, step=1, key="delta_puntos")
-
-            col_a, col_b = st.columns([1,1])
-            with col_a:
-                if st.button("Actualizar puntos", use_container_width=True):
-                    actualizar_puntos(str(r["estudiante_id"]), str(categoria), int(delta), profesor_id)
-                    st.success(f"{delta:+} puntos añadidos en {categoria}.")
-                    st.rerun()
-            with col_b:
-                if st.button("Recalcular vista", use_container_width=True):
-                    clear_all_caches()
-                    st.rerun()
-
+            if st.button("Actualizar puntos", use_container_width=True):
+                actualizar_puntos(str(r["estudiante_id"]), str(categoria), int(delta), profesor_id)
+                st.success(f"{delta:+} puntos añadidos en {categoria}.")
+                st.rerun()
 
 
 # ---- TAB 3: Fraternidades ----
