@@ -82,6 +82,20 @@ def leer_resumen_estudiantes() -> pd.DataFrame:
     df.columns = df.columns.str.lower()
     return df
 
+@st.cache_data(ttl=60)
+def leer_historial_puntos(estudiante_id) -> pd.DataFrame:
+    query = text("""
+        SELECT p.id, v.nombre as valor, p.cantidad, pr.nombre as profesor, p.created_at
+        FROM puntos p
+        JOIN valores v ON v.id = p.valor_id
+        LEFT JOIN profesores pr ON pr.id = p.profesor_id
+        WHERE p.estudiante_id = :eid
+        ORDER BY p.created_at DESC
+    """)
+    with engine.connect() as conn:
+        df = pd.read_sql(query, conn, params={"eid": estudiante_id})
+    return df
+
 def insertar_estudiante(codigo, nombre, apellido, fraternidad):
     with engine.begin() as conn:
         conn.execute(text("""
@@ -99,14 +113,12 @@ def actualizar_estudiante(codigo, campo, valor):
 
 def actualizar_puntos(estudiante_id, valor_nombre, delta, profesor_id=None):
     with engine.begin() as conn:
-        # buscamos el valor_id a partir del nombre del valor
         valor_q = conn.execute(text("SELECT id FROM valores WHERE nombre = :valor AND colegio_id = :colegio"),
                                {"valor": valor_nombre, "colegio": colegio_id}).fetchone()
         if not valor_q:
             st.error("⚠️ El valor no existe en este colegio.")
             return
         valor_id = valor_q[0]
-
         conn.execute(text("""
             INSERT INTO puntos (estudiante_id, valor_id, cantidad, profesor_id)
             VALUES (:estudiante_id, :valor_id, :cantidad, :profesor_id)
@@ -118,6 +130,10 @@ def actualizar_puntos(estudiante_id, valor_nombre, delta, profesor_id=None):
         })
     st.cache_data.clear()
 
+def eliminar_punto(punto_id):
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM puntos WHERE id=:id"), {"id": punto_id})
+    st.cache_data.clear()
 
 # =========================
 # 🏆 App principal
@@ -146,7 +162,7 @@ if rol == "director":
                 st.rerun()
 
 # =======================================================
-# 🔎 Buscar y asignar puntos (PROFESORES y DIRECTORES)
+# 🔎 Buscar estudiante
 # =======================================================
 st.header("🔎 Buscar estudiante")
 opciones = df.apply(lambda r: f"{r['nombre']} {r['apellidos']} ({r['codigo']})", axis=1).tolist()
@@ -160,7 +176,7 @@ if seleccion != "":
         st.error("No encontrado.")
     else:
         r = alumno.iloc[0]
-        st.success(f"👤 {r['nombre']} {r['apellidos']} | 🏠 Fraternidad: {r['fraternidad']}")
+        st.subheader(f"👤 {r['nombre']} {r['apellidos']} | 🎓 {r['grado']} | 🏠 {r['fraternidad']}")
 
         # ➕ Asignar puntos
         st.subheader("➕ Asignar puntos")
@@ -182,3 +198,15 @@ if seleccion != "":
                     actualizar_estudiante(codigo, "apellidos", nuevo_apellido.strip())
                     st.success("✅ Datos actualizados correctamente.")
                     st.rerun()
+
+        # 📊 Historial de puntos (para todos, pero solo director puede borrar)
+        st.subheader("📋 Historial de puntos")
+        historial = leer_historial_puntos(r["estudiante_id"])
+        st.dataframe(historial, use_container_width=True)
+
+        if rol == "director" and not historial.empty:
+            borrar_id = st.selectbox("Selecciona registro a borrar", [""] + historial["id"].astype(str).tolist())
+            if borrar_id and st.button("🗑️ Eliminar registro"):
+                eliminar_punto(borrar_id)
+                st.success("✅ Registro eliminado.")
+                st.rerun()
