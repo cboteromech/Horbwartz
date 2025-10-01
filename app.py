@@ -134,18 +134,26 @@ def leer_resumen_estudiantes(colegio_id: int) -> pd.DataFrame:
 @st.cache_data(ttl=60)
 def leer_historial_puntos(estudiante_id: int, colegio_id: int) -> pd.DataFrame:
     q = text("""
-        SELECT p.id, v.nombre as valor, p.cantidad, 
-               (pr.nombres || ' ' || pr.apellidos) as profesor, 
-               p.created_at
+        SELECT 
+            p.id, 
+            v.nombre AS valor, 
+            p.cantidad, 
+            COALESCE(pr.nombres || ' ' || pr.apellidos, '---') AS profesor,
+            p.created_at
         FROM puntos p
         JOIN valores v ON v.id = p.valor_id
         LEFT JOIN profesores pr ON pr.id = p.profesor_id
-        JOIN estudiantes e ON e.id = p.estudiante_id
-        WHERE p.estudiante_id = :eid AND e.colegio_id = :cid
+        WHERE p.estudiante_id = :eid
+          AND p.colegio_id = :cid
         ORDER BY p.created_at DESC
     """)
     with engine.connect() as conn:
-        return pd.read_sql(q, conn, params={"eid": estudiante_id, "cid": colegio_id})
+        df = pd.read_sql(q, conn, params={
+            "eid": int(estudiante_id),
+            "cid": int(colegio_id)
+        })
+    return df
+
 
 @st.cache_data(ttl=60)
 def leer_valores(colegio_id: int) -> pd.DataFrame:
