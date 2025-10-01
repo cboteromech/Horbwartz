@@ -207,7 +207,7 @@ def actualizar_puntos(estudiante_id, valor_nombre, delta, profesor_id=None):
         if not valor_q:
             st.error("⚠️ El valor no existe en este colegio.")
             return
-        valor_id = str(valor_q[0])   # ✅ Guardar como texto
+        valor_id = str(valor_q[0])   # ✅ UUID en texto
 
         conn.execute(text("""
             INSERT INTO puntos (estudiante_id, valor_id, cantidad, profesor_id)
@@ -219,7 +219,6 @@ def actualizar_puntos(estudiante_id, valor_nombre, delta, profesor_id=None):
             "profesor_id": str(prof_id)          # ✅ UUID como texto
         })
     clear_all_caches()
-
 
 def asignar_puntos_fraternidad(fraternidad_id, valor_nombre, delta, profesor_id):
     if delta == 0:
@@ -398,7 +397,7 @@ with tabs[1]:
             col_a, col_b = st.columns([1,1])
             with col_a:
                 if st.button("Actualizar puntos", use_container_width=True):
-                    actualizar_puntos(int(r["estudiante_id"]), str(categoria), int(delta), profesor_id)
+                    actualizar_puntos(str(r["estudiante_id"]), str(categoria), int(delta), profesor_id)
                     st.success(f"{delta:+} puntos añadidos en {categoria}.")
                     st.rerun()
             with col_b:
