@@ -36,9 +36,17 @@ supabase: Client = create_client(url, key)
 def get_profesor(email):
     with engine.connect() as conn:
         query = text("""
-            SELECT id, rol, fraternidad_id, colegio_id, nombre_completo, asignatura, area, grados
+            SELECT 
+                id, 
+                rol, 
+                fraternidad_id, 
+                colegio_id, 
+                (nombres || ' ' || apellidos) as nombre_completo,
+                asignatura, 
+                area, 
+                grados
             FROM profesores
-            WHERE email=:email
+            WHERE email = :email
         """)
         result = conn.execute(query, {"email": email}).fetchone()
         return result
