@@ -266,8 +266,9 @@ if seleccion != "":
 
         st.markdown(f"### 🧮 Total de puntos: **{total_general}**")
 
-        # Tabla pivote
-        tabla = totales.reset_index().pivot_table(values="puntos", index=None, columns="valor", fill_value=0)
+        # Mostrar tabla con todos los valores
+        tabla = totales.reset_index()
+        tabla.columns = ["Valor", "Puntos"]  # renombrar columnas
         st.dataframe(tabla, use_container_width=True)
 
         # Gráfico de barras
@@ -279,6 +280,7 @@ if seleccion != "":
             st.pyplot(fig)
         else:
             st.info("ℹ️ Este estudiante aún no tiene puntos asignados.")
+
 
 
         # =========================
