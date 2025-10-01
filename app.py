@@ -59,15 +59,15 @@ else:
 # =========================
 def get_profesor(email):
     with engine.connect() as conn:
-        query = text("SELECT rol, fraternidad_id, colegio_id FROM profesores WHERE email=:email")
+        query = text("SELECT id, rol, fraternidad_id, colegio_id FROM profesores WHERE email=:email")
         result = conn.execute(query, {"email": email}).fetchone()
         return result
 
-rol, fraternidad_id, colegio_id = None, None, None
+rol, fraternidad_id, colegio_id, profesor_id = None, None, None, None
 if "user" in st.session_state:
     profesor_data = get_profesor(st.session_state["user"].email)
     if profesor_data:
-        rol, fraternidad_id, colegio_id = profesor_data
+        profesor_id, rol, fraternidad_id, colegio_id = profesor_data
     else:
         st.error("❌ No tienes un rol asignado en este colegio")
         st.stop()
@@ -81,16 +81,6 @@ def leer_resumen_estudiantes() -> pd.DataFrame:
     df = pd.read_sql(query, engine)
     df.columns = df.columns.str.lower()
     return df
-
-def pivot_estudiantes(df):
-    return df.pivot_table(
-        index=["estudiante_id", "codigo", "nombre", "apellidos", "grado", "fraternidad", "colegio"],
-        columns="valor",
-        values="puntos",
-        aggfunc="sum",
-        fill_value=0
-    ).reset_index()
-
 
 def insertar_estudiante(codigo, nombre, apellido, fraternidad):
     with engine.begin() as conn:
@@ -107,8 +97,16 @@ def actualizar_estudiante(codigo, campo, valor):
                      {"valor": valor, "codigo": codigo})
         st.cache_data.clear()
 
-def actualizar_puntos(estudiante_id, valor_id, delta, profesor_id=None):
+def actualizar_puntos(estudiante_id, valor_nombre, delta, profesor_id=None):
     with engine.begin() as conn:
+        # buscamos el valor_id a partir del nombre del valor
+        valor_q = conn.execute(text("SELECT id FROM valores WHERE nombre = :valor AND colegio_id = :colegio"),
+                               {"valor": valor_nombre, "colegio": colegio_id}).fetchone()
+        if not valor_q:
+            st.error("⚠️ El valor no existe en este colegio.")
+            return
+        valor_id = valor_q[0]
+
         conn.execute(text("""
             INSERT INTO puntos (estudiante_id, valor_id, cantidad, profesor_id)
             VALUES (:estudiante_id, :valor_id, :cantidad, :profesor_id)
@@ -162,14 +160,14 @@ if seleccion != "":
         st.error("No encontrado.")
     else:
         r = alumno.iloc[0]
-        st.success(f"👤 {r['nombre']} {r['apellidos']} | 🏠 Frat ID: {r['fraternidad_id']}")
+        st.success(f"👤 {r['nombre']} {r['apellidos']} | 🏠 Fraternidad: {r['fraternidad']}")
 
-        # ➕ Asignar puntos (todos pueden)
+        # ➕ Asignar puntos
         st.subheader("➕ Asignar puntos")
-        categoria = st.selectbox("Categoría", ["Respeto", "Solidaridad", "Honestidad", "Gratitud"])
+        categoria = st.selectbox("Categoría", df["valor"].unique().tolist())
         delta = st.number_input("Puntos (+/-)", -10, 10, 1)
         if st.button("Actualizar puntos"):
-            actualizar_puntos(codigo, categoria, delta)
+            actualizar_puntos(r["estudiante_id"], categoria, delta, profesor_id)
             st.success(f"{delta:+} puntos añadidos en {categoria}.")
             st.rerun()
 
