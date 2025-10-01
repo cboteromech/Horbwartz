@@ -256,11 +256,12 @@ if seleccion != "":
                 right_on="valor"
             )
             .fillna({"puntos": 0})
-            .rename(columns={"nombre": "valor_nombre"})
         )
 
-        totales = totales.groupby("valor_nombre")["puntos"].sum()
+        # Nos quedamos solo con columnas relevantes
+        totales = totales[["nombre", "puntos"]].groupby("nombre")["puntos"].sum()
 
+        # Ahora 'totales' es una Serie con índice = nombre del valor
 
         total_general = totales.sum()
 
