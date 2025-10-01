@@ -421,7 +421,8 @@ if rol == "director":
             if not email_prof or not nombres_prof or not apellidos_prof:
                 st.error("❌ Debes llenar al menos email, nombres y apellidos.")
             else:
-                frat_id = int(frats.loc[frats["nombre"] == fraternidad_prof, "id"].iloc[0])
+                # ✅ Obtener el UUID de la fraternidad como string
+                frat_id = str(frats.loc[frats["nombre"] == fraternidad_prof, "id"].iloc[0])
                 try:
                     with engine.begin() as conn:
                         conn.execute(text("""
@@ -436,8 +437,8 @@ if rol == "director":
                             "asignatura": asignatura_prof or None,
                             "area": area_prof or None,
                             "grados": grados_prof or None,
-                            "frat": frat_id,
-                            "colegio": colegio_id  # 🔒 siempre el del director
+                            "frat": frat_id,             # 👈 ahora UUID válido
+                            "colegio": str(colegio_id)   # 👈 también casteado a string
                         })
                     # Crear también el usuario en Supabase
                     try:
@@ -452,6 +453,7 @@ if rol == "director":
                     st.rerun()
                 except Exception as e:
                     st.error(f"❌ Error al crear profesor en la base de datos: {e}")
+
 
     # 🔑 Resetear contraseña (solo profesores del mismo colegio)
     st.subheader("🔑 Resetear contraseña de profesor")
