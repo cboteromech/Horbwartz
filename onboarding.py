@@ -32,9 +32,10 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Leemos tokens del query
-access_token = st.query_params.get("access_token")
-refresh_token = st.query_params.get("refresh_token")
+# Leer tokens desde la URL
+params = st.experimental_get_query_params()
+access_token = params.get("access_token", [None])[0]
+refresh_token = params.get("refresh_token", [None])[0]
 
 if not access_token:
     st.info("⏳ Procesando invitación... espera un momento.")
@@ -50,10 +51,12 @@ with st.form("reset_password"):
             st.error("⚠️ Las contraseñas no coinciden.")
         else:
             try:
-                supabase.auth.set_session(
-                    {"access_token": access_token, "refresh_token": refresh_token}
-                )
+                # Iniciar sesión con los tokens
+                supabase.auth.set_session(access_token, refresh_token)
+
+                # Actualizar contraseña
                 supabase.auth.update_user({"password": nueva_pass})
+
                 st.success("✅ Contraseña cambiada correctamente.")
                 st.markdown("[🔑 Ir al login](https://hogwartznewteacher.streamlit.app/)")
             except Exception as e:

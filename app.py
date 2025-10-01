@@ -469,24 +469,23 @@ if rol == "director":
                 except Exception as e:
                     st.error(f"❌ Error al crear profesor: {e}")
 
-    # 🔑 Resetear contraseña
-    st.subheader("🔑 Resetear contraseña de profesor")
+    # 🔑 Enviar Magic Link de acceso
+    st.subheader("🔑 Enviar Magic Link de acceso al profesor")
 
-    with st.form("reset_pass_form"):
-        email_reset = st.text_input("Email del profesor a resetear").strip()
-        submit_reset = st.form_submit_button("Resetear")
+    with st.form("magic_link_form"):
+        email_magic = st.text_input("Email del profesor").strip()
+        submit_magic = st.form_submit_button("Enviar Magic Link")
 
-    if submit_reset:
-        if not email_reset:
+    if submit_magic:
+        if not email_magic:
             st.warning("⚠️ Ingresa email del profesor.")
         else:
             try:
-                # Esto envía un correo automático de Supabase con link de reseteo
-                supabase.auth.reset_password_for_email(
-                    email_reset,
-                    options={"redirect_to": "https://resethogwartz.streamlit.app/"}
+                supabase.auth.sign_in_with_otp(
+                    {"email": email_magic},
+                    options={"email_redirect_to": "https://hogwartznewteacher.streamlit.app/"}
                 )
-                st.success(f"✅ Se envió un correo de recuperación a {email_reset}.")
+                st.success(f"✅ Se envió un Magic Link a {email_magic}.")
             except Exception as e:
-                st.error(f"❌ Error al enviar reset: {e}")
+                st.error(f"❌ Error al enviar Magic Link: {e}")
 
