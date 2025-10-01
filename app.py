@@ -484,7 +484,7 @@ if rol == "director":
                 # Esto envía un correo automático de Supabase con link de reseteo
                 supabase.auth.reset_password_for_email(
                     email_reset,
-                    options={"redirect_to": "https://hogwartznewteacher.streamlit.app/reset"}
+                    options={"redirect_to": "https://resethogwartz.streamlit.app/"}
                 )
                 st.success(f"✅ Se envió un correo de recuperación a {email_reset}.")
             except Exception as e:
