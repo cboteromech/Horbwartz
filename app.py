@@ -49,12 +49,21 @@ if "user" not in st.session_state:
     st.stop()
 else:
     st.sidebar.write(f"Conectado como {st.session_state['user'].email}")
-    st.sidebar.markdown("### 👨‍🏫 Perfil del profesor")
-    st.sidebar.write(f"**Nombre completo:** {nombre_completo}")
-    st.sidebar.write(f"**Rol:** {rol}")
-    st.sidebar.write(f"**Asignatura:** {asignatura}")
-    st.sidebar.write(f"**Área:** {area}")
-    st.sidebar.write(f"**Grados:** {grados}")
+
+    # 👉 Aquí obtenemos datos del profesor ANTES de mostrarlos
+    profesor_data = get_profesor(st.session_state["user"].email)
+    if profesor_data:
+        profesor_id, rol, fraternidad_id, colegio_id, nombre_completo, asignatura, area, grados = profesor_data
+
+        st.sidebar.markdown("### 👨‍🏫 Perfil del profesor")
+        st.sidebar.write(f"**Nombre completo:** {nombre_completo}")
+        st.sidebar.write(f"**Rol:** {rol}")
+        st.sidebar.write(f"**Asignatura:** {asignatura}")
+        st.sidebar.write(f"**Área:** {area}")
+        st.sidebar.write(f"**Grados:** {grados}")
+    else:
+        st.error("❌ No tienes un rol asignado en este colegio")
+        st.stop()
 
     if st.sidebar.button("Cerrar sesión"):
         supabase.auth.sign_out()
