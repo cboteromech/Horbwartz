@@ -497,9 +497,11 @@ if rol == "director":
                     supabase.auth.admin.update_user_by_id(auth_id, {"password": nueva_pass})
 
                     # 2. Disparar función de Supabase que envía el correo
-                    supabase.functions.invoke("send-password-email",
-                        body={"email": email_reset, "password": nueva_pass}
+                    supabase.functions.invoke(
+                        "send-password-email",
+                        data={"email": email_reset, "password": nueva_pass}
                     )
+
 
                     st.success(f"✅ Contraseña reseteada y enviada a {email_reset}")
                 except Exception as e:
