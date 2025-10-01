@@ -469,20 +469,24 @@ if rol == "director":
                 except Exception as e:
                     st.error(f"❌ Error al crear profesor: {e}")
 
-    # 🔑 Resetear contraseña (flujo oficial con correo de Supabase)
+    # 🔑 Resetear contraseña
     st.subheader("🔑 Resetear contraseña de profesor")
 
     with st.form("reset_pass_form"):
         email_reset = st.text_input("Email del profesor a resetear").strip()
-        submit_reset = st.form_submit_button("Enviar link de recuperación")
+        submit_reset = st.form_submit_button("Resetear")
 
     if submit_reset:
         if not email_reset:
-            st.warning("⚠️ Ingresa el email del profesor.")
+            st.warning("⚠️ Ingresa email del profesor.")
         else:
             try:
-                supabase.auth.reset_password_email(email_reset)
-                st.success(f"✅ Se envió un correo a {email_reset} con instrucciones para restablecer su contraseña.")
+                # Esto envía un correo automático de Supabase con link de reseteo
+                supabase.auth.reset_password_for_email(
+                    email_reset,
+                    options={"redirect_to": "https://hogwartznewteacher.streamlit.app/reset"}
+                )
+                st.success(f"✅ Se envió un correo de recuperación a {email_reset}.")
             except Exception as e:
-                st.error(f"❌ Error al enviar correo de recuperación: {e}")
+                st.error(f"❌ Error al enviar reset: {e}")
 
