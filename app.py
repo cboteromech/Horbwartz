@@ -313,8 +313,11 @@ with tabs[1]:
         st.success(f"✅ {len(ids_texto)} estudiante(s) seleccionados por búsqueda textual")
         # Si hay solo uno → mostrar detalle
         if len(ids_texto) == 1:
-            estudiante_seleccionado = df[df["estudiante_id"] == ids_texto[0]].iloc[0]
-            st.session_state["estudiante_sel_id"] = ids_texto[0]
+            cand = df[df["estudiante_id"] == ids_texto[0]]
+            if not cand.empty:
+                estudiante_seleccionado = cand.drop_duplicates(subset=["estudiante_id"]).iloc[0]
+                st.session_state["estudiante_sel_id"] = ids_texto[0]
+
         else:
             # Asignar puntos a varios
             valores_df = leer_valores(colegio_id)
