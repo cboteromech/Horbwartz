@@ -254,10 +254,13 @@ if seleccion != "":
                 how="left",
                 left_on="nombre",
                 right_on="valor"
-            )[["nombre", "puntos"]]
-            .fillna(0)
-            .set_index("nombre")["puntos"]
+            )
+            .fillna({"puntos": 0})
+            .rename(columns={"nombre": "valor_nombre"})
         )
+
+        totales = totales.groupby("valor_nombre")["puntos"].sum()
+
 
         total_general = totales.sum()
 
