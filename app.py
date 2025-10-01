@@ -301,16 +301,22 @@ with tabs[1]:
         axis=1
     ).tolist()
 
-    seleccion_multi = st.multiselect("Escribe y selecciona estudiante(s):", opciones, key="busqueda_texto_multi")
+    seleccion_multi = st.multiselect(
+        "Escribe y selecciona estudiante(s):",
+        opciones,
+        key="busqueda_texto_multi"
+    )
 
     ids_texto = []
     if seleccion_multi:
         for sel in seleccion_multi:
-            est = df.drop_duplicates(subset=["estudiante_id"]).iloc[opciones.index(sel)]
+            idx = opciones.index(sel)
+            est = df.drop_duplicates(subset=["estudiante_id"]).iloc[idx]
             ids_texto.append(str(est["estudiante_id"]))
 
     if ids_texto:
         st.success(f"✅ {len(ids_texto)} estudiante(s) seleccionados por búsqueda textual")
+
         # Si hay solo uno → mostrar detalle
         if len(ids_texto) == 1:
             cand = df[df["estudiante_id"] == ids_texto[0]]
@@ -318,8 +324,8 @@ with tabs[1]:
                 estudiante_seleccionado = cand.drop_duplicates(subset=["estudiante_id"]).iloc[0]
                 st.session_state["estudiante_sel_id"] = ids_texto[0]
 
-        else:
-            # Asignar puntos a varios
+        # Si hay varios → asignación masiva
+        elif len(ids_texto) > 1:
             valores_df = leer_valores(colegio_id)
             st.subheader("➕ Asignar puntos a seleccionados (texto)")
             categoria = st.selectbox("Categoría", valores_df["nombre"].tolist(), key="categoria_masiva_texto")
@@ -327,10 +333,9 @@ with tabs[1]:
 
             if st.button("Asignar puntos a seleccionados (texto)", type="primary", use_container_width=True):
                 for est_id in ids_texto:
-                    actualizar_puntos(est_id, str(categoria), int(delta), profesor_id)
+                    actualizar_puntos(str(est_id), str(categoria), int(delta), profesor_id)
                 st.success(f"✅ {delta:+} puntos asignados a {len(ids_texto)} estudiantes por búsqueda textual.")
                 st.rerun()
-
 
     # ========================
     # 🎓 Búsqueda jerárquica
@@ -364,7 +369,7 @@ with tabs[1]:
                 df_filtrado["Seleccionar"] = False
 
                 df_sel = st.data_editor(
-                    df_filtrado[["estudiante_id","codigo","nombre","apellidos","fraternidad","grado","puntos","Seleccionar"]],
+                    df_filtrado[["estudiante_id", "codigo", "nombre", "apellidos", "fraternidad", "grado", "puntos", "Seleccionar"]],
                     use_container_width=True,
                     hide_index=True,
                     column_config={
@@ -382,7 +387,7 @@ with tabs[1]:
                     st.session_state["origen_busqueda"] = "jerarquico"
 
                     # si hay uno solo seleccionado en jerárquica y no hay texto activo → mostrar detalle
-                    if len(ids_seleccionados) == 1 and not seleccion:
+                    if len(ids_seleccionados) == 1 and not ids_texto:
                         est_row = df_filtrado.loc[seleccionados.index[0]]
                         estudiante_seleccionado = est_row
                         st.session_state["estudiante_sel_id"] = str(est_row["estudiante_id"])
@@ -390,11 +395,11 @@ with tabs[1]:
                     # Asignar puntos a varios
                     if len(ids_seleccionados) > 1:
                         valores_df = leer_valores(colegio_id)
-                        st.subheader("➕ Asignar puntos a seleccionados")
+                        st.subheader("➕ Asignar puntos a seleccionados (jerárquico)")
                         categoria = st.selectbox("Categoría", valores_df["nombre"].tolist(), key="categoria_masiva")
                         delta = st.number_input("Puntos (+/-)", min_value=-50, max_value=50, value=1, step=1, key="delta_masiva")
 
-                        if st.button("Asignar puntos a seleccionados", type="primary", use_container_width=True):
+                        if st.button("Asignar puntos a seleccionados (jerárquico)", type="primary", use_container_width=True):
                             for est_id in ids_seleccionados:
                                 actualizar_puntos(str(est_id), str(categoria), int(delta), profesor_id)
                             st.success(f"✅ {delta:+} puntos asignados a {len(ids_seleccionados)} estudiantes.")
@@ -408,6 +413,7 @@ with tabs[1]:
         cand = df[df["estudiante_id"] == est_id]
         if not cand.empty:
             estudiante_seleccionado = cand.drop_duplicates(subset=["estudiante_id"]).iloc[0]
+
 
     # ========================
     # Detalle del estudiante
