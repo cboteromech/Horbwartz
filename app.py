@@ -124,7 +124,7 @@ def actualizar_puntos(estudiante_id, valor_id, delta, profesor_id=None):
 # =========================
 # 🏆 App principal
 # =========================
-df = leer_estudiantes()
+df = leer_resumen_estudiantes()
 st.title("🏆 Sistema de Puntos Hogwarts")
 
 # =========================
