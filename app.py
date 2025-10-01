@@ -76,10 +76,21 @@ if "user" in st.session_state:
 # 📂 Funciones DB
 # =========================
 @st.cache_data(ttl=60)
-def leer_estudiantes() -> pd.DataFrame:
-    query = "SELECT * FROM estudiantes;"
+def leer_resumen_estudiantes() -> pd.DataFrame:
+    query = "SELECT * FROM resumen_puntos_estudiantes;"
     df = pd.read_sql(query, engine)
+    df.columns = df.columns.str.lower()
     return df
+
+def pivot_estudiantes(df):
+    return df.pivot_table(
+        index=["estudiante_id", "codigo", "nombre", "apellidos", "grado", "fraternidad", "colegio"],
+        columns="valor",
+        values="puntos",
+        aggfunc="sum",
+        fill_value=0
+    ).reset_index()
+
 
 def insertar_estudiante(codigo, nombre, apellido, fraternidad):
     with engine.begin() as conn:
@@ -96,11 +107,19 @@ def actualizar_estudiante(codigo, campo, valor):
                      {"valor": valor, "codigo": codigo})
         st.cache_data.clear()
 
-def actualizar_puntos(codigo, categoria, delta):
+def actualizar_puntos(estudiante_id, valor_id, delta, profesor_id=None):
     with engine.begin() as conn:
-        conn.execute(text(f'UPDATE estudiantes SET "{categoria}" = "{categoria}" + :delta WHERE codigo = :codigo'),
-                     {"delta": delta, "codigo": codigo})
-        st.cache_data.clear()
+        conn.execute(text("""
+            INSERT INTO puntos (estudiante_id, valor_id, cantidad, profesor_id)
+            VALUES (:estudiante_id, :valor_id, :cantidad, :profesor_id)
+        """), {
+            "estudiante_id": estudiante_id,
+            "valor_id": valor_id,
+            "cantidad": delta,
+            "profesor_id": profesor_id
+        })
+    st.cache_data.clear()
+
 
 # =========================
 # 🏆 App principal
