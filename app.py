@@ -404,13 +404,13 @@ if rol == "director":
     st.header("👨‍🏫 Gestión de profesores")
 
     with st.form("agregar_profesor"):
-        email_prof = st.text_input("Email del profesor")
-        nombres_prof = st.text_input("Nombres")
-        apellidos_prof = st.text_input("Apellidos")
+        email_prof = st.text_input("Email del profesor").strip()
+        nombres_prof = st.text_input("Nombres").strip()
+        apellidos_prof = st.text_input("Apellidos").strip()
         rol_prof = st.selectbox("Rol", ["profesor", "director"])
-        asignatura_prof = st.text_input("Asignatura")
-        area_prof = st.text_input("Área")
-        grados_prof = st.text_input("Grados (ej: 6A,7B)")
+        asignatura_prof = st.text_input("Asignatura").strip()
+        area_prof = st.text_input("Área").strip()
+        grados_prof = st.text_input("Grados (ej: 6A,7B)").strip()
 
         frats = leer_fraternidades(colegio_id)
         fraternidad_prof = st.selectbox("Fraternidad", frats["nombre"].tolist())
@@ -418,39 +418,59 @@ if rol == "director":
         submit_prof = st.form_submit_button("➕ Agregar profesor")
 
         if submit_prof:
-            frat_id = int(frats.loc[frats["nombre"] == fraternidad_prof, "id"].iloc[0])
-            with engine.begin() as conn:
-                conn.execute(text("""
-                    INSERT INTO profesores (email, nombres, apellidos, rol, asignatura, area, grados, fraternidad_id, colegio_id)
-                    VALUES (:email, :nombres, :apellidos, :rol, :asignatura, :area, :grados, :frat, :colegio)
-                """), {
-                    "email": email_prof.strip(),
-                    "nombres": nombres_prof.strip(),
-                    "apellidos": apellidos_prof.strip(),
-                    "rol": rol_prof,
-                    "asignatura": asignatura_prof.strip() or None,
-                    "area": area_prof.strip() or None,
-                    "grados": grados_prof.strip() or None,
-                    "frat": frat_id,
-                    "colegio": colegio_id
-                })
-            # Intento de creación en Supabase (requiere service key)
-            try:
-                supabase.auth.admin.create_user({
-                    "email": email_prof.strip(),
-                    "password": "temporal123",
-                    "email_confirm": True
-                })
-                st.success("✅ Profesor agregado y usuario creado en Supabase (contraseña: temporal123)")
-            except Exception as e:
-                st.warning(f"⚠️ Profesor creado en DB, pero error creando usuario en Supabase: {e}")
-            st.rerun()
+            if not email_prof or not nombres_prof or not apellidos_prof:
+                st.error("❌ Debes llenar al menos email, nombres y apellidos.")
+            else:
+                frat_id = int(frats.loc[frats["nombre"] == fraternidad_prof, "id"].iloc[0])
+                try:
+                    with engine.begin() as conn:
+                        conn.execute(text("""
+                            INSERT INTO profesores 
+                            (email, nombres, apellidos, rol, asignatura, area, grados, fraternidad_id, colegio_id)
+                            VALUES (:email, :nombres, :apellidos, :rol, :asignatura, :area, :grados, :frat, :colegio)
+                        """), {
+                            "email": email_prof,
+                            "nombres": nombres_prof,
+                            "apellidos": apellidos_prof,
+                            "rol": rol_prof,
+                            "asignatura": asignatura_prof or None,
+                            "area": area_prof or None,
+                            "grados": grados_prof or None,
+                            "frat": frat_id,
+                            "colegio": colegio_id  # 🔒 siempre el del director
+                        })
+                    # Crear también el usuario en Supabase
+                    try:
+                        supabase.auth.admin.create_user({
+                            "email": email_prof,
+                            "password": "temporal123",
+                            "email_confirm": True
+                        })
+                        st.success("✅ Profesor agregado y usuario creado en Supabase (contraseña: temporal123)")
+                    except Exception as e:
+                        st.warning(f"⚠️ Profesor creado en DB, pero error en Supabase: {e}")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error al crear profesor en la base de datos: {e}")
 
+    # 🔑 Resetear contraseña (solo profesores del mismo colegio)
     st.subheader("🔑 Resetear contraseña de profesor")
-    email_reset = st.text_input("Email del profesor a resetear")
+    email_reset = st.text_input("Email del profesor a resetear").strip()
     if st.button("Resetear contraseña"):
-        try:
-            supabase.auth.reset_password_email(email_reset.strip())
-            st.success(f"🔑 Email de reseteo enviado a {email_reset}")
-        except Exception as e:
-            st.error(f"❌ Error: {e}")
+        if not email_reset:
+            st.warning("⚠️ Ingresa un email.")
+        else:
+            with engine.connect() as conn:
+                row = conn.execute(text("""
+                    SELECT id FROM profesores 
+                    WHERE email = :email AND colegio_id = :cid
+                """), {"email": email_reset, "cid": colegio_id}).fetchone()
+
+            if not row:
+                st.error("❌ Ese profesor no pertenece a tu colegio.")
+            else:
+                try:
+                    supabase.auth.reset_password_email(email_reset)
+                    st.success(f"🔑 Email de reseteo enviado a {email_reset}")
+                except Exception as e:
+                    st.error(f"❌ Error al enviar email de reseteo: {e}")
