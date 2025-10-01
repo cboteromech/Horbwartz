@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 from sqlalchemy import create_engine, text
 from supabase import create_client, Client
 
-
 # =========================
 # ⚙️ Configuración general
 # =========================
@@ -47,7 +46,7 @@ if "user" not in st.session_state:
             st.rerun()
         except Exception as e:
             st.error(f"❌ Error: {e}")
-    st.stop()  # 🚦 Si no está logueado, no carga el resto de la app
+    st.stop()
 else:
     st.sidebar.write(f"Conectado como {st.session_state['user'].email}")
     if st.sidebar.button("Cerrar sesión"):
@@ -55,222 +54,114 @@ else:
         del st.session_state["user"]
         st.rerun()
 
-
-try:
+# =========================
+# 📌 Obtener rol desde la tabla profesores
+# =========================
+def get_profesor(email):
     with engine.connect() as conn:
-        st.success("✅ Conexión a Supabase exitosa")
-except Exception as e:
-    st.error(f"❌ Error al conectar: {e}")
+        query = text("SELECT rol, fraternidad_id, colegio_id FROM profesores WHERE email=:email")
+        result = conn.execute(query, {"email": email}).fetchone()
+        return result
 
-# Categorías de puntos
-CATEGORIAS = ["Marca LCB", "Respeto", "Solidaridad", "Honestidad", "Gratitud", "Corresponsabilidad"]
+rol, fraternidad_id, colegio_id = None, None, None
+if "user" in st.session_state:
+    profesor_data = get_profesor(st.session_state["user"].email)
+    if profesor_data:
+        rol, fraternidad_id, colegio_id = profesor_data
+    else:
+        st.error("❌ No tienes un rol asignado en este colegio")
+        st.stop()
 
 # =========================
 # 📂 Funciones DB
 # =========================
-@st.cache_data(ttl=60)  # ⚡ cachea lecturas durante 60 segundos
-def leer_estudiantes(codigo=None, frat=None) -> pd.DataFrame:
-    if codigo:
-        query = f'SELECT * FROM estudiantes WHERE "Código" = \'{codigo}\';'
-    elif frat:
-        query = f'SELECT * FROM estudiantes WHERE "Fraternidad" = \'{frat}\';'
-    else:
-        query = "SELECT * FROM estudiantes;"
-    
+@st.cache_data(ttl=60)
+def leer_estudiantes() -> pd.DataFrame:
+    query = "SELECT * FROM estudiantes;"
     df = pd.read_sql(query, engine)
-
-    # Normalización
-    for c in CATEGORIAS:
-        if c not in df.columns:
-            df[c] = 0
-        df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0).astype(int)
-
-    if "Total" not in df.columns:
-        df["Total"] = 0
-    df["Total"] = df[CATEGORIAS].sum(axis=1)
-
-    if not df.empty:
-        df["NombreCompleto"] = (
-            df["Nombre"].astype(str).str.strip() + " " + df["Apellidos"].astype(str).str.strip()
-        ).str.strip()
-        df["Código"] = df["Código"].astype(str).str.strip()
     return df
 
 def insertar_estudiante(codigo, nombre, apellido, fraternidad):
     with engine.begin() as conn:
         conn.execute(text("""
-            INSERT INTO estudiantes ("Código","Nombre","Apellidos","Fraternidad","Marca LCB","Respeto",
-            "Solidaridad","Honestidad","Gratitud","Corresponsabilidad","Total")
-            VALUES (:codigo, :nombre, :apellido, :frat, 0,0,0,0,0,0,0)
-        """), {"codigo": codigo, "nombre": nombre, "apellido": apellido, "frat": fraternidad})
+            INSERT INTO estudiantes (codigo, nombre, apellidos, fraternidad_id, colegio_id)
+            VALUES (:codigo, :nombre, :apellido, :frat, :colegio)
+        """), {"codigo": codigo, "nombre": nombre, "apellido": apellido,
+               "frat": fraternidad_id, "colegio": colegio_id})
         st.cache_data.clear()
 
 def actualizar_estudiante(codigo, campo, valor):
     with engine.begin() as conn:
-        conn.execute(text(f'UPDATE estudiantes SET "{campo}" = :valor WHERE "Código" = :codigo'),
+        conn.execute(text(f'UPDATE estudiantes SET "{campo}" = :valor WHERE codigo = :codigo'),
                      {"valor": valor, "codigo": codigo})
         st.cache_data.clear()
 
 def actualizar_puntos(codigo, categoria, delta):
     with engine.begin() as conn:
-        conn.execute(text(f'UPDATE estudiantes SET "{categoria}" = "{categoria}" + :delta WHERE "Código" = :codigo'),
+        conn.execute(text(f'UPDATE estudiantes SET "{categoria}" = "{categoria}" + :delta WHERE codigo = :codigo'),
                      {"delta": delta, "codigo": codigo})
-        st.cache_data.clear()
-
-def actualizar_puntos_frat(frat, categoria, delta):
-    with engine.begin() as conn:
-        conn.execute(text(f'UPDATE estudiantes SET "{categoria}" = "{categoria}" + :delta WHERE "Fraternidad" = :frat'),
-                     {"delta": delta, "frat": frat})
-        st.cache_data.clear()
-
-def actualizar_puntos_grupo(codigos, categoria, delta):
-    with engine.begin() as conn:
-        conn.execute(text(f'UPDATE estudiantes SET "{categoria}" = "{categoria}" + :delta WHERE "Código" = ANY(:codigos)'),
-                     {"delta": delta, "codigos": codigos})
         st.cache_data.clear()
 
 # =========================
 # 🏆 App principal
 # =========================
 df = leer_estudiantes()
-frats_default = ["Gryffindor", "Slytherin", "Hufflepuff", "Ravenclaw"]
-FRATERNIDADES = sorted(set(df["Fraternidad"].dropna().astype(str).tolist() + frats_default))
-
 st.title("🏆 Sistema de Puntos Hogwarts")
 
-# =======================================================
-# 👤 Gestión de estudiantes
-# =======================================================
-with st.expander("➕ Añadir nuevo estudiante"):
-    c1, c2, c3, c4 = st.columns(4)
-    with c1: codigo = st.text_input("Código")
-    with c2: nombre = st.text_input("Nombre")
-    with c3: apellido = st.text_input("Apellidos")
-    with c4: frat = st.selectbox("Fraternidad", FRATERNIDADES)
+# =========================
+# 👤 Gestión de estudiantes (solo DIRECTOR)
+# =========================
+if rol == "director":
+    with st.expander("➕ Añadir nuevo estudiante"):
+        c1, c2, c3 = st.columns(3)
+        with c1: codigo = st.text_input("Código")
+        with c2: nombre = st.text_input("Nombre")
+        with c3: apellido = st.text_input("Apellidos")
 
-    if st.button("Agregar estudiante"):
-        if not codigo or not nombre or not apellido:
-            st.error("⚠️ Todos los campos son obligatorios.")
-        elif df["Código"].astype(str).eq(str(codigo).strip()).any():
-            st.error("⚠️ Ya existe un estudiante con ese código.")
-        else:
-            insertar_estudiante(str(codigo).strip(), nombre.strip(), apellido.strip(), frat.strip())
-            st.success(f"✅ Estudiante {nombre} {apellido} añadido.")
-            st.rerun()
+        if st.button("Agregar estudiante"):
+            if not codigo or not nombre or not apellido:
+                st.error("⚠️ Todos los campos son obligatorios.")
+            elif df["codigo"].astype(str).eq(str(codigo).strip()).any():
+                st.error("⚠️ Ya existe un estudiante con ese código.")
+            else:
+                insertar_estudiante(codigo.strip(), nombre.strip(), apellido.strip(), fraternidad_id)
+                st.success(f"✅ Estudiante {nombre} {apellido} añadido.")
+                st.rerun()
 
 # =======================================================
-# 🔎 Buscar y editar estudiante
+# 🔎 Buscar y asignar puntos (PROFESORES y DIRECTORES)
 # =======================================================
 st.header("🔎 Buscar estudiante")
-opciones = df.apply(lambda r: f"{r['NombreCompleto']} ({r['Código']})", axis=1).tolist()
+opciones = df.apply(lambda r: f"{r['nombre']} {r['apellidos']} ({r['codigo']})", axis=1).tolist()
 seleccion = st.selectbox("Selecciona estudiante:", [""] + opciones)
 
 if seleccion != "":
     codigo = seleccion.split("(")[-1].replace(")", "").strip()
-    alumno = df[df["Código"] == codigo]
+    alumno = df[df["codigo"] == codigo]
 
     if alumno.empty:
         st.error("No encontrado.")
     else:
         r = alumno.iloc[0]
-        st.success(f"👤 {r['NombreCompleto']} | 🏠 {r['Fraternidad']} | 🧮 {r['Total']} puntos")
+        st.success(f"👤 {r['nombre']} {r['apellidos']} | 🏠 Frat ID: {r['fraternidad_id']}")
 
-        # 📊 Gráfico individual
-        st.subheader("📈 Puntos del estudiante")
-        fig, ax = plt.subplots(figsize=(5,3))
-        r[CATEGORIAS].plot(kind="bar", ax=ax, color="skyblue")
-        st.pyplot(fig)
-
-        # ✏️ Editar datos
-        with st.expander("✏️ Editar datos del estudiante"):
-            nuevo_nombre = st.text_input("Nombre", r["Nombre"], key=f"nombre_{codigo}")
-            nuevo_apellido = st.text_input("Apellidos", r["Apellidos"], key=f"apellidos_{codigo}")
-            nueva_frat = st.selectbox("Fraternidad", FRATERNIDADES, 
-                          index=FRATERNIDADES.index(r["Fraternidad"]), 
-                          key=f"frat_{codigo}")
-
-            if st.button("💾 Guardar cambios"):
-                actualizar_estudiante(codigo, "Nombre", nuevo_nombre.strip())
-                actualizar_estudiante(codigo, "Apellidos", nuevo_apellido.strip())
-                actualizar_estudiante(codigo, "Fraternidad", nueva_frat.strip())
-                st.success("✅ Datos actualizados correctamente.")
-                st.rerun()
-
-        # ➕ Asignar puntos individuales
+        # ➕ Asignar puntos (todos pueden)
         st.subheader("➕ Asignar puntos")
-        categoria = st.selectbox("Categoría", CATEGORIAS)
+        categoria = st.selectbox("Categoría", ["Respeto", "Solidaridad", "Honestidad", "Gratitud"])
         delta = st.number_input("Puntos (+/-)", -10, 10, 1)
         if st.button("Actualizar puntos"):
             actualizar_puntos(codigo, categoria, delta)
             st.success(f"{delta:+} puntos añadidos en {categoria}.")
             st.rerun()
 
-# =======================================================
-# ⚡ Asignación masiva de puntos
-# =======================================================
-with st.expander("🏠 Asignar puntos a una fraternidad"):
-    frat_target = st.selectbox("Selecciona fraternidad", FRATERNIDADES, key="bulk_frat")
-    cat_bulk = st.selectbox("Categoría", CATEGORIAS, key="bulk_frat_cat")
-    pts_bulk = st.number_input("Puntos (+/-)", step=1, value=1, min_value=-50, max_value=50, key="bulk_frat_pts")
-    if st.button("Aplicar a fraternidad"):
-        actualizar_puntos_frat(frat_target, cat_bulk, pts_bulk)
-        st.success(f"✅ {pts_bulk:+} puntos añadidos a todos en {frat_target}.")
-        st.rerun()
+        # ✏️ Editar datos (solo DIRECTOR)
+        if rol == "director":
+            with st.expander("✏️ Editar datos del estudiante"):
+                nuevo_nombre = st.text_input("Nombre", r["nombre"], key=f"nombre_{codigo}")
+                nuevo_apellido = st.text_input("Apellidos", r["apellidos"], key=f"apellidos_{codigo}")
 
-with st.expander("👥 Asignar puntos a varios estudiantes"):
-    opciones_codigos = df["Código"].astype(str).tolist()
-    seleccionados = st.multiselect("Selecciona estudiantes", opciones_codigos,
-                                   format_func=lambda c: df[df["Código"] == c]["NombreCompleto"].iloc[0])
-    cat_bulk2 = st.selectbox("Categoría", CATEGORIAS, key="bulk_group_cat")
-    pts_bulk2 = st.number_input("Puntos (+/-)", step=1, value=1, min_value=-50, max_value=50, key="bulk_group_pts")
-    if st.button("Aplicar a seleccionados"):
-        actualizar_puntos_grupo(seleccionados, cat_bulk2, pts_bulk2)
-        st.success(f"✅ {pts_bulk2:+} puntos añadidos a {len(seleccionados)} estudiantes.")
-        st.rerun()
-
-# =======================================================
-# 📊 Reportes y análisis
-# =======================================================
-st.header("📊 Reportes")
-
-# Tabla completa
-st.subheader("📋 Tabla de estudiantes")
-st.dataframe(df, use_container_width=True)
-
-# Resumen por fraternidad
-st.subheader("📋 Resumen por fraternidad")
-resumen = (
-    df.groupby("Fraternidad")
-      .agg(Estudiantes=("Código", "count"), PuntosTotales=("Total", "sum"))
-      .reset_index()
-      .sort_values("PuntosTotales", ascending=False)
-)
-st.dataframe(resumen, use_container_width=True)
-
-# Ranking gráfico
-st.subheader("🏆 Ranking de casas")
-fig2, ax2 = plt.subplots(figsize=(6,3))
-resumen.plot(x="Fraternidad", y="PuntosTotales", kind="barh", ax=ax2, color="gold")
-st.pyplot(fig2)
-
-# Tabla filtrada
-st.subheader("📊 Ver estudiantes por fraternidad")
-frat_filtro = st.selectbox("Elige una fraternidad", [""] + FRATERNIDADES)
-if frat_filtro:
-    df_frat = df[df["Fraternidad"] == frat_filtro]
-    st.dataframe(df_frat, use_container_width=True)
-
-# Valores fuertes de cada casa
-st.subheader("💪 Valores fuertes por casa")
-resumen_valores = df.groupby("Fraternidad")[CATEGORIAS].sum().reset_index()
-frat_valores = st.selectbox("Selecciona una fraternidad para ver sus valores", FRATERNIDADES)
-
-if frat_valores:
-    datos_casa = resumen_valores[resumen_valores["Fraternidad"] == frat_valores]
-    valores = datos_casa[CATEGORIAS].iloc[0]
-
-    fig3, ax3 = plt.subplots(figsize=(6,3))
-    valores.plot(kind="bar", ax=ax3, color="skyblue")
-    ax3.set_ylabel("Puntos acumulados")
-    ax3.set_title(f"Valores de {frat_valores}")
-    st.pyplot(fig3)
+                if st.button("💾 Guardar cambios"):
+                    actualizar_estudiante(codigo, "nombre", nuevo_nombre.strip())
+                    actualizar_estudiante(codigo, "apellidos", nuevo_apellido.strip())
+                    st.success("✅ Datos actualizados correctamente.")
+                    st.rerun()
