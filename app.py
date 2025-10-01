@@ -293,39 +293,43 @@ with tabs[1]:
     estudiante_seleccionado = None
 
     # ========================
-    # 🔎 Búsqueda por texto (multi)
+    # 🔎 Buscador INDIVIDUAL
     # ========================
-    st.subheader("🔎 Búsqueda por estudiante (multi)")
-    opciones = df.drop_duplicates(subset=["estudiante_id"]).apply(
+    st.subheader("🔎 Búsqueda individual (detalle completo)")
+    opciones_individual = df.drop_duplicates(subset=["estudiante_id"]).apply(
         lambda r: f"{r['codigo'] or ''} | {r['nombre']} {r['apellidos']} | {r['grado']} | {r['fraternidad'] or '-'}",
         axis=1
     ).tolist()
 
-    seleccion_multi = st.multiselect(
-        "Escribe y selecciona estudiante(s):",
-        opciones,
-        key="busqueda_texto_multi"
-    )
+    seleccion_individual = st.selectbox("Elige un estudiante:", [""] + opciones_individual, key="busqueda_individual")
+
+    if seleccion_individual and seleccion_individual != "":
+        idx = opciones_individual.index(seleccion_individual)
+        est = df.drop_duplicates(subset=["estudiante_id"]).iloc[idx]
+        estudiante_seleccionado = est
+        st.session_state["estudiante_sel_id"] = str(est["estudiante_id"])
+
+    # ========================
+    # 🔎 Búsqueda por texto (multi)
+    # ========================
+    st.subheader("🔎 Búsqueda por estudiantes (múltiple)")
+    opciones_multi = df.drop_duplicates(subset=["estudiante_id"]).apply(
+        lambda r: f"{r['codigo'] or ''} | {r['nombre']} {r['apellidos']} | {r['grado']} | {r['fraternidad'] or '-'}",
+        axis=1
+    ).tolist()
+
+    seleccion_multi = st.multiselect("Escribe y selecciona varios:", opciones_multi, key="busqueda_texto_multi")
 
     ids_texto = []
     if seleccion_multi:
         for sel in seleccion_multi:
-            idx = opciones.index(sel)
+            idx = opciones_multi.index(sel)
             est = df.drop_duplicates(subset=["estudiante_id"]).iloc[idx]
             ids_texto.append(str(est["estudiante_id"]))
 
     if ids_texto:
-        st.success(f"✅ {len(ids_texto)} estudiante(s) seleccionados por búsqueda textual")
-
-        # Si hay solo uno → mostrar detalle
-        if len(ids_texto) == 1:
-            cand = df[df["estudiante_id"] == ids_texto[0]]
-            if not cand.empty:
-                estudiante_seleccionado = cand.drop_duplicates(subset=["estudiante_id"]).iloc[0]
-                st.session_state["estudiante_sel_id"] = ids_texto[0]
-
-        # Si hay varios → asignación masiva
-        elif len(ids_texto) > 1:
+        st.success(f"✅ {len(ids_texto)} estudiante(s) seleccionados")
+        if len(ids_texto) > 1:
             valores_df = leer_valores(colegio_id)
             st.subheader("➕ Asignar puntos a seleccionados (texto)")
             categoria = st.selectbox("Categoría", valores_df["nombre"].tolist(), key="categoria_masiva_texto")
@@ -334,13 +338,13 @@ with tabs[1]:
             if st.button("Asignar puntos a seleccionados (texto)", type="primary", use_container_width=True):
                 for est_id in ids_texto:
                     actualizar_puntos(str(est_id), str(categoria), int(delta), profesor_id)
-                st.success(f"✅ {delta:+} puntos asignados a {len(ids_texto)} estudiantes por búsqueda textual.")
+                st.success(f"✅ {delta:+} puntos asignados a {len(ids_texto)} estudiantes.")
                 st.rerun()
 
     # ========================
     # 🎓 Búsqueda jerárquica
     # ========================
-    st.subheader("🎓 Buscar por grado y sección")
+    st.subheader("🎓 Buscar por grado y sección (múltiple)")
     grados_unicos = df["grado"].dropna().astype(str).unique().tolist()
 
     def partir_grado(g: str):
@@ -369,7 +373,7 @@ with tabs[1]:
                 df_filtrado["Seleccionar"] = False
 
                 df_sel = st.data_editor(
-                    df_filtrado[["estudiante_id", "codigo", "nombre", "apellidos", "fraternidad", "grado", "puntos", "Seleccionar"]],
+                    df_filtrado[["estudiante_id","codigo","nombre","apellidos","fraternidad","grado","puntos","Seleccionar"]],
                     use_container_width=True,
                     hide_index=True,
                     column_config={
@@ -383,16 +387,7 @@ with tabs[1]:
                 ids_seleccionados = seleccionados["estudiante_id"].astype(str).tolist()
 
                 if ids_seleccionados:
-                    st.success(f"✅ {len(ids_seleccionados)} estudiantes seleccionados")
-                    st.session_state["origen_busqueda"] = "jerarquico"
-
-                    # si hay uno solo seleccionado en jerárquica y no hay texto activo → mostrar detalle
-                    if len(ids_seleccionados) == 1 and not ids_texto:
-                        est_row = df_filtrado.loc[seleccionados.index[0]]
-                        estudiante_seleccionado = est_row
-                        st.session_state["estudiante_sel_id"] = str(est_row["estudiante_id"])
-
-                    # Asignar puntos a varios
+                    st.success(f"✅ {len(ids_seleccionados)} estudiantes seleccionados en jerárquico")
                     if len(ids_seleccionados) > 1:
                         valores_df = leer_valores(colegio_id)
                         st.subheader("➕ Asignar puntos a seleccionados (jerárquico)")
@@ -406,7 +401,7 @@ with tabs[1]:
                             st.rerun()
 
     # ========================
-    # Recuperar estudiante persistente
+    # Detalle del estudiante (INDIVIDUAL)
     # ========================
     if estudiante_seleccionado is None and st.session_state.get("estudiante_sel_id") is not None:
         est_id = st.session_state["estudiante_sel_id"]
@@ -414,10 +409,6 @@ with tabs[1]:
         if not cand.empty:
             estudiante_seleccionado = cand.drop_duplicates(subset=["estudiante_id"]).iloc[0]
 
-
-    # ========================
-    # Detalle del estudiante
-    # ========================
     if estudiante_seleccionado is not None:
         r = estudiante_seleccionado
         st.markdown(f"## 👤 {r['nombre']} {r['apellidos']} | 🎓 {r['grado']} | 🏠 {r['fraternidad']}")
@@ -461,6 +452,7 @@ with tabs[1]:
                 if st.button("Recalcular vista", use_container_width=True):
                     clear_all_caches()
                     st.rerun()
+
 
 
 # ---- TAB 3: Fraternidades ----
