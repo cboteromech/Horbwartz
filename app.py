@@ -224,8 +224,14 @@ else:
 # 🔎 Buscar estudiante
 # =======================================================
 st.header("🔎 Buscar estudiante")
-opciones = df.apply(lambda r: f"{r['nombre']} {r['apellidos']} ({r['codigo']})", axis=1).tolist()
+opciones = (
+    df[["estudiante_id", "codigo", "nombre", "apellidos"]]
+    .drop_duplicates()
+    .apply(lambda r: f"{r['nombre']} {r['apellidos']} ({r['codigo']})", axis=1)
+    .tolist()
+)
 seleccion = st.selectbox("Selecciona estudiante:", [""] + opciones)
+
 
 if seleccion != "":
     codigo = seleccion.split("(")[-1].replace(")", "").strip()
