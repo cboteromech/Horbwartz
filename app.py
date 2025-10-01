@@ -195,29 +195,38 @@ def actualizar_estudiante_full(estudiante_id, codigo, nombre, apellidos, grado, 
     clear_all_caches()
 
 def actualizar_puntos(estudiante_id, valor_nombre, delta, profesor_id=None):
-    # FIX: Validaciones y transacción
     if delta == 0:
         st.info("ℹ️ No se registran movimientos por 0 puntos.")
         return
+
+    if profesor_id is None:
+        st.error("⚠️ No se puede asignar puntos porque no se reconoce al profesor logueado.")
+        return
+
     with engine.begin() as conn:
         valor_q = conn.execute(
             text("SELECT id FROM valores WHERE nombre = :valor AND colegio_id = :colegio"),
             {"valor": valor_nombre, "colegio": colegio_id}
         ).fetchone()
+
         if not valor_q:
             st.error("⚠️ El valor no existe en este colegio.")
             return
-        valor_id = valor_q[0]
+
+        valor_id = int(valor_q[0])
+
         conn.execute(text("""
             INSERT INTO puntos (estudiante_id, valor_id, cantidad, profesor_id)
             VALUES (:estudiante_id, :valor_id, :cantidad, :profesor_id)
         """), {
-            "estudiante_id": estudiante_id,
+            "estudiante_id": int(estudiante_id),
             "valor_id": valor_id,
             "cantidad": int(delta),
-            "profesor_id": profesor_id
+            "profesor_id": int(profesor_id)
         })
+
     clear_all_caches()
+
 
 # =========================
 # 🏆 App principal
