@@ -10,7 +10,6 @@ from supabase import create_client, Client
 # =========================
 st.set_page_config(page_title="Sistema Hogwarts", page_icon="🏆", layout="wide")
 
-# Evitar recargas innecesarias al cambiar widgets
 if "initialized" not in st.session_state:
     st.session_state.initialized = True
 
@@ -39,7 +38,6 @@ supabase: Client = create_client(url, key)
 # 📌 Utilidades de caché
 # =========================
 def clear_all_caches():
-    """Limpia todas las cachés de datos tras operaciones de escritura."""
     st.cache_data.clear()
 
 # =========================
@@ -49,21 +47,16 @@ def get_profesor(email):
     with engine.connect() as conn:
         query = text("""
             SELECT 
-                id, 
-                rol, 
-                fraternidad_id, 
-                colegio_id, 
+                id, rol, fraternidad_id, colegio_id, 
                 (nombres || ' ' || apellidos) as nombre_completo,
-                asignatura, 
-                area, 
-                grados
+                asignatura, area, grados
             FROM profesores
             WHERE email = :email
         """)
         row = conn.execute(query, {"email": email}).fetchone()
         return row
 
-# Inicialización de variables de contexto
+# Inicialización de variables
 profesor_id = rol = fraternidad_id = colegio_id = None
 nombre_completo = asignatura = area = grados = None
 
@@ -110,12 +103,10 @@ else:
                     st.sidebar.error("⚠️ Las contraseñas no coinciden.")
                 else:
                     try:
-                        # Verificar que la actual es correcta
                         supabase.auth.sign_in_with_password({
                             "email": st.session_state['user'].email,
                             "password": actual
                         })
-                        # Actualizar a la nueva
                         supabase.auth.update_user({"password": nueva})
                         st.sidebar.success("✅ Contraseña actualizada correctamente.")
                     except Exception as e:
@@ -129,10 +120,8 @@ else:
             supabase.auth.sign_out()
         finally:
             st.session_state.pop("user", None)
-            # También limpiamos selección de estudiante
             st.session_state.pop("estudiante_sel_id", None)
             st.rerun()
-
 # =========================
 # 📂 Funciones DB
 # =========================
@@ -427,6 +416,7 @@ if estudiante_seleccionado is not None:
 if rol == "director":
     st.header("👨‍🏫 Gestión de profesores")
 
+    # ➕ Agregar profesor
     with st.form("agregar_profesor"):
         email_prof = st.text_input("Email del profesor").strip()
         cedula_prof = st.text_input("Cédula (será la contraseña inicial)").strip()
@@ -448,15 +438,13 @@ if rol == "director":
             else:
                 frat_id = str(frats.loc[frats["nombre"] == fraternidad_prof, "id"].iloc[0])
                 try:
-                    # 1. Crear usuario en Supabase con contraseña = cédula
                     user_resp = supabase.auth.admin.create_user({
                         "email": email_prof,
                         "password": cedula_prof,
                         "email_confirm": True
                     })
-                    auth_id = user_resp.user.id  # 👈 Guardamos el ID de Supabase Auth
+                    auth_id = user_resp.user.id
 
-                    # 2. Insertar en tabla profesores SOLO una vez
                     with engine.begin() as conn:
                         conn.execute(text("""
                             INSERT INTO profesores 
@@ -481,30 +469,38 @@ if rol == "director":
                 except Exception as e:
                     st.error(f"❌ Error al crear profesor: {e}")
 
-
-
-
-    # 🔑 Resetear contraseña (solo profesores del mismo colegio)
+    # 🔑 Resetear contraseña
     st.subheader("🔑 Resetear contraseña de profesor")
-    email_reset = st.text_input("Email del profesor a resetear").strip()
-    if st.button("Resetear contraseña"):
-        if not email_reset:
-            st.warning("⚠️ Ingresa un email.")
+
+    with st.form("reset_pass_form"):
+        email_reset = st.text_input("Email del profesor a resetear").strip()
+        nueva_pass = st.text_input("Nueva contraseña asignada", type="password")
+        submit_reset = st.form_submit_button("Resetear")
+
+    if submit_reset:
+        if not email_reset or not nueva_pass:
+            st.warning("⚠️ Ingresa email y nueva contraseña.")
         else:
             with engine.connect() as conn:
                 row = conn.execute(text("""
-                    SELECT auth_id, cedula 
-                    FROM profesores 
+                    SELECT auth_id
+                    FROM profesores
                     WHERE email = :email AND colegio_id = :cid
                 """), {"email": email_reset, "cid": colegio_id}).fetchone()
 
             if not row:
                 st.error("❌ Ese profesor no pertenece a tu colegio.")
             else:
-                auth_id, cedula = row
+                auth_id = str(row[0])
                 try:
-                    supabase.auth.admin.update_user_by_id(auth_id, {"password": cedula})
-                    st.success(f"🔑 Contraseña reseteada = cédula ({cedula}) para {email_reset}")
+                    # 1. Resetear contraseña
+                    supabase.auth.admin.update_user_by_id(auth_id, {"password": nueva_pass})
+
+                    # 2. Disparar función de Supabase que envía el correo
+                    supabase.functions.invoke("send-password-email",
+                        body={"email": email_reset, "password": nueva_pass}
+                    )
+
+                    st.success(f"✅ Contraseña reseteada y enviada a {email_reset}")
                 except Exception as e:
                     st.error(f"❌ Error al resetear contraseña: {e}")
-
