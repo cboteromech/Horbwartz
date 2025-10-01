@@ -439,15 +439,17 @@ if rol == "director":
                             "frat": frat_id,
                             "colegio": str(colegio_id)
                         })
-                    # Enviar invitación de Supabase
+
+                    # 👇 Crear usuario en Supabase + enviar invitación
                     try:
                         supabase.auth.admin.invite_user_by_email(email_prof)
-                        st.success(f"✅ Profesor agregado y se envió invitación a {email_prof} para que cree su contraseña.")
+                        st.success(f"✅ Profesor agregado. Se creó el usuario en Supabase y se envió invitación a {email_prof}.")
                     except Exception as e:
-                        st.warning(f"⚠️ Profesor creado en DB, pero error al invitarlo en Supabase: {e}")
+                        st.warning(f"⚠️ Profesor creado en DB, pero error al crear usuario en Supabase: {e}")
                     st.rerun()
                 except Exception as e:
                     st.error(f"❌ Error al crear profesor en la base de datos: {e}")
+
 
 
     # 🔑 Resetear contraseña (solo profesores del mismo colegio)
