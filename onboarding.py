@@ -1,71 +1,61 @@
+# resethogwartz/app.py
 import streamlit as st
 from supabase import create_client, Client
 
 st.set_page_config(page_title="Resetear contraseña", page_icon="🔑")
 
 url: str = st.secrets["SUPABASE_URL"]
-key: str = st.secrets["SUPABASE_KEY"]
+key: str = st.secrets["SUPABASE_KEY"]  # usa ANON KEY aquí
 supabase: Client = create_client(url, key)
 
 st.title("🔑 Restablecer tu contraseña")
 
-# ======================================
-# 🔥 Script para mover #access_token → ?access_token
-# ======================================
-st.markdown("""
-<script>
-const hash = window.location.hash.substring(1);
-if (hash) {
-    const params = new URLSearchParams(hash);
-    const access_token = params.get("access_token");
-    const refresh_token = params.get("refresh_token");
-    if (access_token) {
-        const query = new URLSearchParams({
-            access_token: access_token,
-            refresh_token: refresh_token
-        });
-        const baseUrl = window.location.href.split("#")[0];
-        window.location.replace(baseUrl + "?" + query.toString());
-    }
-}
-</script>
-""", unsafe_allow_html=True)
+# ===============================
+# 1) Verificación OTP
+# ===============================
+if "otp_ok" not in st.session_state:
+    st.session_state.otp_ok = False
+if "email" not in st.session_state:
+    st.session_state.email = ""
 
-# ======================================
-# Leer tokens desde query params
-# ======================================
-params = st.query_params
-access_token = params.get("access_token", None)
-refresh_token = params.get("refresh_token", None)
+if not st.session_state.otp_ok:
+    st.subheader("1) Verifica tu código")
+    with st.form("otp"):
+        email = st.text_input("Correo", value=st.session_state.email)
+        code = st.text_input("Código de 6 dígitos", max_chars=6)
+        submit = st.form_submit_button("Verificar")
 
-if not access_token:
-    st.info("⏳ Procesando invitación... espera un momento.")
-    st.stop()
-
-# ======================================
-# Formulario para nueva contraseña
-# ======================================
-with st.form("reset_password"):
-    nueva_pass = st.text_input("Nueva contraseña", type="password")
-    confirmar_pass = st.text_input("Confirmar contraseña", type="password")
-    submit = st.form_submit_button("Actualizar")
-
-    if submit:
-        if not nueva_pass or not confirmar_pass:
-            st.error("⚠️ Completa ambos campos.")
-        elif nueva_pass != confirmar_pass:
-            st.error("⚠️ Las contraseñas no coinciden.")
-        else:
+        if submit:
             try:
-                # Establecer sesión en Supabase
-                supabase.auth.set_session({
-                    "access_token": access_token,
-                    "refresh_token": refresh_token
+                supabase.auth.verify_otp({
+                    "email": email,
+                    "token": code,
+                    "type": "email"
                 })
-
-                supabase.auth.update_user({"password": nueva_pass})
-
-                st.success("✅ Contraseña cambiada correctamente.")
-                st.markdown("[🔑 Ir al sistema de puntos](https://horbwartz-zheasdtrshxosf7izr9fv9.streamlit.app/)")
+                st.session_state.otp_ok = True
+                st.session_state.email = email
+                st.success("✅ Código verificado. Ahora cambia tu contraseña.")
+                st.rerun()
             except Exception as e:
-                st.error(f"❌ Error: {e}")
+                st.error(f"❌ Error verificando: {e}")
+
+# ===============================
+# 2) Nueva contraseña
+# ===============================
+else:
+    st.subheader("2) Nueva contraseña")
+    with st.form("newpass"):
+        new = st.text_input("Nueva contraseña", type="password")
+        confirm = st.text_input("Confirmar contraseña", type="password")
+        submit = st.form_submit_button("Actualizar")
+
+        if submit:
+            if new != confirm:
+                st.error("⚠️ Las contraseñas no coinciden.")
+            else:
+                try:
+                    supabase.auth.update_user({"password": new})
+                    st.success("✅ Contraseña cambiada correctamente.")
+                    st.markdown("[Ir al sistema de puntos](https://horbwartz-zheasdtrshxosf7izr9fv9.streamlit.app/)")
+                except Exception as e:
+                    st.error(f"❌ Error: {e}")

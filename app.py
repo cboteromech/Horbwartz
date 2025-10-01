@@ -469,24 +469,25 @@ if rol == "director":
                 except Exception as e:
                     st.error(f"❌ Error al crear profesor: {e}")
 
-    # 🔑 Enviar Magic Link de acceso
-    st.subheader("🔑 Enviar Magic Link de acceso al profesor")
+    # 🔑 Enviar acceso al profesor (OTP o Magic Link)
+    st.subheader("🔑 Enviar acceso al profesor")
 
     with st.form("magic_link_form"):
         email_magic = st.text_input("Email del profesor").strip()
-        submit_magic = st.form_submit_button("Enviar Magic Link")
+        submit_magic = st.form_submit_button("Enviar")
 
     if submit_magic:
         if not email_magic:
             st.warning("⚠️ Ingresa email del profesor.")
         else:
             try:
-                supabase.auth.sign_in_with_otp({
-                    "email": email_magic,
-                    "options": {
-                        "email_redirect_to": "https://resethogwartz.streamlit.app/"
-                    }
-                })
-                st.success(f"✅ Se envió un Magic Link a {email_magic}.")
+                # Envia link + código OTP de 6 dígitos
+                supabase.auth.sign_in_with_otp({"email": email_magic})
+                st.success(
+                    f"✅ Se envió un Magic Link y código OTP a {email_magic}. "
+                    "Puede entrar con el link o usar el código en la app de reset."
+                )
             except Exception as e:
                 st.error(f"❌ Error al enviar Magic Link: {e}")
+
+
