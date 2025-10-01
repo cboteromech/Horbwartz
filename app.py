@@ -96,6 +96,30 @@ else:
         st.sidebar.write(f"**Asignatura:** {asignatura or '-'}")
         st.sidebar.write(f"**Área:** {area or '-'}")
         st.sidebar.write(f"**Grados:** {grados or '-'}")
+        st.sidebar.markdown("### 🔑 Cambiar contraseña")
+        with st.sidebar.form("cambiar_contrasena"):
+            actual = st.text_input("Contraseña actual", type="password")
+            nueva = st.text_input("Nueva contraseña", type="password")
+            confirmar = st.text_input("Confirmar nueva", type="password")
+            submit_pass = st.form_submit_button("Actualizar")
+
+            if submit_pass:
+                if not actual or not nueva or not confirmar:
+                    st.sidebar.error("⚠️ Completa todos los campos.")
+                elif nueva != confirmar:
+                    st.sidebar.error("⚠️ Las contraseñas no coinciden.")
+                else:
+                    try:
+                        # Verificar que la actual es correcta
+                        supabase.auth.sign_in_with_password({
+                            "email": st.session_state['user'].email,
+                            "password": actual
+                        })
+                        # Actualizar a la nueva
+                        supabase.auth.update_user({"password": nueva})
+                        st.sidebar.success("✅ Contraseña actualizada correctamente.")
+                    except Exception as e:
+                        st.sidebar.error(f"❌ Error: {e}")
     else:
         st.error("❌ No tienes un rol asignado en este colegio")
         st.stop()
@@ -405,6 +429,7 @@ if rol == "director":
 
     with st.form("agregar_profesor"):
         email_prof = st.text_input("Email del profesor").strip()
+        cedula_prof = st.text_input("Cédula (será la contraseña inicial)").strip()
         nombres_prof = st.text_input("Nombres").strip()
         apellidos_prof = st.text_input("Apellidos").strip()
         rol_prof = st.selectbox("Rol", ["profesor", "director"])
@@ -418,18 +443,29 @@ if rol == "director":
         submit_prof = st.form_submit_button("➕ Agregar profesor")
 
         if submit_prof:
-            if not email_prof or not nombres_prof or not apellidos_prof:
-                st.error("❌ Debes llenar al menos email, nombres y apellidos.")
+            if not email_prof or not nombres_prof or not apellidos_prof or not cedula_prof:
+                st.error("❌ Debes llenar email, cédula, nombres y apellidos.")
             else:
                 frat_id = str(frats.loc[frats["nombre"] == fraternidad_prof, "id"].iloc[0])
                 try:
+                    # 1. Crear usuario en Supabase con contraseña = cédula
+                    user_resp = supabase.auth.admin.create_user({
+                        "email": email_prof,
+                        "password": cedula_prof,
+                        "email_confirm": True
+                    })
+                    auth_id = user_resp.user.id  # 👈 Guardamos el ID de Supabase Auth
+
+                    # 2. Insertar en tabla profesores SOLO una vez
                     with engine.begin() as conn:
                         conn.execute(text("""
                             INSERT INTO profesores 
-                            (email, nombres, apellidos, rol, asignatura, area, grados, fraternidad_id, colegio_id)
-                            VALUES (:email, :nombres, :apellidos, :rol, :asignatura, :area, :grados, :frat, :colegio)
+                            (email, cedula, auth_id, nombres, apellidos, rol, asignatura, area, grados, fraternidad_id, colegio_id)
+                            VALUES (:email, :cedula, :auth_id, :nombres, :apellidos, :rol, :asignatura, :area, :grados, :frat, :colegio)
                         """), {
                             "email": email_prof,
+                            "cedula": cedula_prof,
+                            "auth_id": auth_id,
                             "nombres": nombres_prof,
                             "apellidos": apellidos_prof,
                             "rol": rol_prof,
@@ -440,15 +476,11 @@ if rol == "director":
                             "colegio": str(colegio_id)
                         })
 
-                    # 👇 Crear usuario en Supabase + enviar invitación
-                    try:
-                        supabase.auth.admin.invite_user_by_email(email_prof)
-                        st.success(f"✅ Profesor agregado. Se creó el usuario en Supabase y se envió invitación a {email_prof}.")
-                    except Exception as e:
-                        st.warning(f"⚠️ Profesor creado en DB, pero error al crear usuario en Supabase: {e}")
+                    st.success(f"✅ Profesor agregado. Usuario creado en Supabase con contraseña inicial = cédula ({cedula_prof}).")
                     st.rerun()
                 except Exception as e:
-                    st.error(f"❌ Error al crear profesor en la base de datos: {e}")
+                    st.error(f"❌ Error al crear profesor: {e}")
+
 
 
 
@@ -461,15 +493,18 @@ if rol == "director":
         else:
             with engine.connect() as conn:
                 row = conn.execute(text("""
-                    SELECT id FROM profesores 
+                    SELECT auth_id, cedula 
+                    FROM profesores 
                     WHERE email = :email AND colegio_id = :cid
                 """), {"email": email_reset, "cid": colegio_id}).fetchone()
 
             if not row:
                 st.error("❌ Ese profesor no pertenece a tu colegio.")
             else:
+                auth_id, cedula = row
                 try:
-                    supabase.auth.reset_password_email(email_reset)
-                    st.success(f"🔑 Email de reseteo enviado a {email_reset}")
+                    supabase.auth.admin.update_user_by_id(auth_id, {"password": cedula})
+                    st.success(f"🔑 Contraseña reseteada = cédula ({cedula}) para {email_reset}")
                 except Exception as e:
-                    st.error(f"❌ Error al enviar email de reseteo: {e}")
+                    st.error(f"❌ Error al resetear contraseña: {e}")
+
