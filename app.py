@@ -416,7 +416,8 @@ with tabs[1]:
                                       index=frats_df["nombre"].tolist().index(r["fraternidad"]) if r["fraternidad"] in frats_df["nombre"].tolist() else 0)
                 submit_edit = st.form_submit_button("Actualizar estudiante")
                 if submit_edit:
-                    frat_id = int(frats_df.loc[frats_df["nombre"] == frat_n, "id"].iloc[0]) if not frats_df.empty else None
+                    frat_id = str(frats_df.loc[frats_df["nombre"] == frat_n, "id"].iloc[0]) if not frats_df.empty else None
+
                     actualizar_estudiante_full(r["estudiante_id"], codigo_n, nombre_n, apellidos_n, grado_n, frat_id)
                     st.success("✅ Estudiante actualizado.")
                     st.rerun()
@@ -475,7 +476,8 @@ with tabs[1]:
                 if not nombre_n or not apellidos_n or not grado_n:
                     st.error("⚠️ Nombre, apellidos y grado son obligatorios.")
                 else:
-                    frat_id = int(frats_df.loc[frats_df["nombre"] == fraternidad_n, "id"].iloc[0]) if not frats_df.empty else None
+                    frat_id = str(frats_df.loc[frats_df["nombre"] == fraternidad_n, "id"].iloc[0]) if not frats_df.empty else None
+
 
                     try:
                         with engine.begin() as conn:
@@ -573,8 +575,8 @@ with tabs[3]:
                                 "asignatura": asignatura_prof or None,
                                 "area": area_prof or None,
                                 "grados": grados_prof or None,
-                                "frat": frat_id,
-                                "colegio": int(colegio_id)
+                                "frat": str(frat_id) if frat_id else None,
+                                "colegio": str(colegio_id)
                             })
 
                         st.success(f"✅ Profesor agregado. Contraseña inicial = cédula ({cedula_prof}).")
