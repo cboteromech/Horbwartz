@@ -121,18 +121,17 @@ if st.sidebar.button("Cerrar sesión", use_container_width=True):
 # 📂 Funciones DB (cache)
 # =========================
 @st.cache_data(ttl=60)
-def leer_resumen_estudiantes(colegio_id: int) -> pd.DataFrame:
+def leer_resumen_estudiantes(colegio_id: str) -> pd.DataFrame:   # ✅ colegio_id también puede ser UUID
     q = text("SELECT * FROM resumen_puntos_estudiantes WHERE colegio_id = :cid")
     with engine.connect() as conn:
-        df = pd.read_sql(q, conn, params={"cid": colegio_id})
+        df = pd.read_sql(q, conn, params={"cid": str(colegio_id)})  # ✅
     df.columns = df.columns.str.lower()
-    # asegurar tipos
     if "puntos" in df.columns:
         df["puntos"] = pd.to_numeric(df["puntos"], errors="coerce").fillna(0).astype(int)
     return df
 
 @st.cache_data(ttl=60)
-def leer_historial_puntos(estudiante_id: int, colegio_id: int) -> pd.DataFrame:
+def leer_historial_puntos(estudiante_id: str, colegio_id: str) -> pd.DataFrame:
     q = text("""
         SELECT 
             p.id, 
@@ -150,22 +149,23 @@ def leer_historial_puntos(estudiante_id: int, colegio_id: int) -> pd.DataFrame:
     """)
     with engine.connect() as conn:
         df = pd.read_sql(q, conn, params={
-            "eid": int(estudiante_id),
-            "cid": int(colegio_id)
+            "eid": str(estudiante_id),   # ✅
+            "cid": str(colegio_id)       # ✅
         })
     return df
 
 @st.cache_data(ttl=60)
-def leer_valores(colegio_id: int) -> pd.DataFrame:
+def leer_valores(colegio_id: str) -> pd.DataFrame:
     q = text("SELECT id, nombre FROM valores WHERE colegio_id = :cid ORDER BY nombre")
     with engine.connect() as conn:
-        return pd.read_sql(q, conn, params={"cid": colegio_id})
+        return pd.read_sql(q, conn, params={"cid": str(colegio_id)})
 
 @st.cache_data(ttl=60)
-def leer_fraternidades(colegio_id: int) -> pd.DataFrame:
+def leer_fraternidades(colegio_id: str) -> pd.DataFrame:
     q = text("SELECT id, nombre FROM fraternidades WHERE colegio_id = :cid ORDER BY nombre")
     with engine.connect() as conn:
-        return pd.read_sql(q, conn, params={"cid": colegio_id})
+        return pd.read_sql(q, conn, params={"cid": str(colegio_id)})
+
 
 # =========================
 # ✏️ CRUD estudiante
@@ -181,10 +181,11 @@ def actualizar_estudiante_full(estudiante_id, codigo, nombre, apellidos, grado, 
             "nombre": (nombre or "").strip(),
             "apellidos": (apellidos or "").strip(),
             "grado": (grado or "").strip(),
-            "frat": int(fraternidad_id) if fraternidad_id is not None else None,
-            "id": int(estudiante_id)
+            "frat": str(fraternidad_id) if fraternidad_id is not None else None,  # ✅
+            "id": str(estudiante_id)  # ✅
         })
     clear_all_caches()
+
 
 # =========================
 # 🧮 Puntos
@@ -202,23 +203,24 @@ def actualizar_puntos(estudiante_id, valor_nombre, delta, profesor_id=None):
     with engine.begin() as conn:
         valor_q = conn.execute(
             text("SELECT id FROM valores WHERE nombre=:valor AND colegio_id=:colegio"),
-            {"valor": valor_nombre, "colegio": colegio_id}
+            {"valor": valor_nombre, "colegio": str(colegio_id)}   # ✅
         ).fetchone()
         if not valor_q:
             st.error("⚠️ El valor no existe en este colegio.")
             return
-        valor_id = str(valor_q[0])   # ✅ UUID en texto
+        valor_id = str(valor_q[0])   # ✅
 
         conn.execute(text("""
             INSERT INTO puntos (estudiante_id, valor_id, cantidad, profesor_id)
             VALUES (:estudiante_id, :valor_id, :cantidad, :profesor_id)
         """), {
-            "estudiante_id": str(estudiante_id),  # ✅ UUID como texto
+            "estudiante_id": str(estudiante_id),  # ✅
             "valor_id": valor_id,
-            "cantidad": int(delta),              # ✅ numérico
-            "profesor_id": str(prof_id)          # ✅ UUID como texto
+            "cantidad": int(delta),              # numérico
+            "profesor_id": str(prof_id)          # ✅
         })
     clear_all_caches()
+
 
 def asignar_puntos_fraternidad(fraternidad_id, valor_nombre, delta, profesor_id):
     if delta == 0:
@@ -227,16 +229,16 @@ def asignar_puntos_fraternidad(fraternidad_id, valor_nombre, delta, profesor_id)
     with engine.begin() as conn:
         valor_q = conn.execute(
             text("SELECT id FROM valores WHERE nombre=:valor AND colegio_id=:colegio"),
-            {"valor": valor_nombre, "colegio": colegio_id}
+            {"valor": valor_nombre, "colegio": str(colegio_id)}  # ✅
         ).fetchone()
         if not valor_q:
             st.error("⚠️ El valor no existe en este colegio.")
             return
-        valor_id = str(valor_q[0])   # ✅ Guardar como texto
+        valor_id = str(valor_q[0])   # ✅
 
         estudiantes = conn.execute(
             text("SELECT id FROM estudiantes WHERE fraternidad_id=:fid AND colegio_id=:cid"),
-            {"fid": str(fraternidad_id), "cid": str(colegio_id)}
+            {"fid": str(fraternidad_id), "cid": str(colegio_id)}  # ✅
         ).fetchall()
 
         for (est_id,) in estudiantes:
@@ -244,10 +246,10 @@ def asignar_puntos_fraternidad(fraternidad_id, valor_nombre, delta, profesor_id)
                 INSERT INTO puntos (estudiante_id, valor_id, cantidad, profesor_id)
                 VALUES (:eid, :valor_id, :cantidad, :profesor_id)
             """), {
-                "eid": str(est_id),             # ✅ UUID como texto
+                "eid": str(est_id),             # ✅
                 "valor_id": valor_id,
-                "cantidad": int(delta),         # ✅ numérico
-                "profesor_id": str(profesor_id) # ✅ UUID como texto
+                "cantidad": int(delta),
+                "profesor_id": str(profesor_id) # ✅
             })
     clear_all_caches()
 
