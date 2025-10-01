@@ -30,13 +30,17 @@ with st.form("reset_password"):
             st.error("⚠️ Las contraseñas no coinciden.")
         else:
             try:
-                # Crear sesión con los tokens del link
-                supabase.auth.set_session(access_token, refresh_token)
+            # Crear sesión usando tokens del Magic Link
+            supabase.auth.set_session({
+                "access_token": access_token,
+                "refresh_token": refresh_token
+            })
 
-                # Actualizar contraseña
-                supabase.auth.update_user({"password": nueva_pass})
+            # Actualizar contraseña
+            supabase.auth.update_user({"password": nueva_pass})
 
-                st.success("✅ Contraseña cambiada correctamente.")
-                st.markdown("[🔑 Ir al login](https://hogwartznewteacher.streamlit.app/)")
-            except Exception as e:
-                st.error(f"❌ Error: {e}")
+            st.success("✅ Contraseña cambiada correctamente.")
+            st.markdown("[🔑 Ir al login](https://resethogwartz.streamlit.app/)")
+        except Exception as e:
+            st.error(f"❌ Error: {e}")
+
