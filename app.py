@@ -52,24 +52,26 @@ if "user" in st.session_state:
 # 📂 Funciones DB
 # =========================
 @st.cache_data(ttl=60)
-def leer_resumen_estudiantes() -> pd.DataFrame:
-    query = "SELECT * FROM resumen_puntos_estudiantes;"
-    df = pd.read_sql(query, engine)
+def leer_resumen_estudiantes(colegio_id) -> pd.DataFrame:
+    query = text("SELECT * FROM resumen_puntos_estudiantes WHERE colegio_id = :cid")
+    with engine.connect() as conn:
+        df = pd.read_sql(query, conn, params={"cid": colegio_id})
     df.columns = df.columns.str.lower()
     return df
 
 @st.cache_data(ttl=60)
-def leer_historial_puntos(estudiante_id) -> pd.DataFrame:
+def leer_historial_puntos(estudiante_id, colegio_id) -> pd.DataFrame:
     query = text("""
         SELECT p.id, v.nombre as valor, p.cantidad, pr.nombre as profesor, p.created_at
         FROM puntos p
         JOIN valores v ON v.id = p.valor_id
         LEFT JOIN profesores pr ON pr.id = p.profesor_id
-        WHERE p.estudiante_id = :eid
+        JOIN estudiantes e ON e.id = p.estudiante_id
+        WHERE p.estudiante_id = :eid AND e.colegio_id = :cid
         ORDER BY p.created_at DESC
     """)
     with engine.connect() as conn:
-        df = pd.read_sql(query, conn, params={"eid": estudiante_id})
+        df = pd.read_sql(query, conn, params={"eid": estudiante_id, "cid": colegio_id})
     return df
 
 def actualizar_estudiante_full(estudiante_id, codigo, nombre, apellidos, grado, fraternidad_id):
@@ -110,7 +112,9 @@ def actualizar_puntos(estudiante_id, valor_nombre, delta, profesor_id=None):
 # =========================
 # 🏆 App principal
 # =========================
-df = leer_resumen_estudiantes()
+df = leer_resumen_estudiantes(colegio_id)
+historial = leer_historial_puntos(r["estudiante_id"], colegio_id)
+
 st.title("🏆 Sistema de Puntos Hogwarts")
 
 # =======================================================
