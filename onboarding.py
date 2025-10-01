@@ -36,24 +36,23 @@ with st.form("reset_form"):
                 # Buscar profesor en DB
                 with engine.begin() as conn:
                     prof = conn.execute(
-                        text("SELECT id, email FROM profesores WHERE cedula = :ced"),
+                        text("SELECT id, email, auth_id FROM profesores WHERE cedula = :ced"),
                         {"ced": cedula}
                     ).fetchone()
 
                 if not prof:
                     st.error("❌ No existe un profesor con esa cédula.")
                 else:
-                    # La nueva "email" será igual a la cédula
-                    nuevo_email = f"{cedula}@hogwartz.edu"  # 👈 aquí defines el dominio institucional
+                    nuevo_email = f"{cedula}@hogwartz.edu"  # email institucional
                     nueva_pass = cedula  # clave = cedula
 
-                    # Actualizar en Supabase (usuario + password)
-                    supabase.auth.admin.update_user_by_email(
-                        prof.email,
+                    # 🔑 Actualizar en Supabase Auth
+                    supabase.auth.admin.update_user_by_id(
+                        prof.auth_id,
                         {"email": nuevo_email, "password": nueva_pass}
                     )
 
-                    # Actualizar en tu tabla profesores
+                    # 🔄 Actualizar en tabla profesores
                     with engine.begin() as conn:
                         conn.execute(
                             text("UPDATE profesores SET email=:email WHERE id=:id"),
@@ -62,5 +61,6 @@ with st.form("reset_form"):
 
                     st.success(f"✅ Acceso reseteado. Ahora puede entrar con:\n- **Usuario:** {nuevo_email}\n- **Contraseña:** {cedula}")
                     st.markdown("[Ir al login](https://horbwartz-zheasdtrshxosf7izr9fv9.streamlit.app/)")
+
             except Exception as e:
                 st.error(f"❌ Error: {e}")
