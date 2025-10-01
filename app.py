@@ -324,18 +324,26 @@ with tabs[1]:
                 st.dataframe(df_filtrado[["codigo", "nombre", "apellidos", "fraternidad", "grado", "puntos"]],
                              use_container_width=True, hide_index=True)
 
-                df_filtrado = df_filtrado.assign(
-                    mostrar=df_filtrado["apellidos"].fillna("") + ", " +
-                            df_filtrado["nombre"].fillna("") + " — " +
-                            df_filtrado["codigo"].fillna("")
-                )
-                opciones = [""] + df_filtrado["mostrar"].tolist()
-                sel = st.selectbox("Selecciona un estudiante:", opciones, index=0, key="select_estudiante")
+                # Tabla interactiva con checkbox de selección
+                df_filtrado = df_filtrado.reset_index(drop=True)
+                df_filtrado["Seleccionar"] = False
 
-                if sel != "":
-                    est_row = df_filtrado[df_filtrado["mostrar"] == sel].iloc[0]
+                df_sel = st.data_editor(
+                    df_filtrado[["codigo", "nombre", "apellidos", "fraternidad", "grado", "puntos", "Seleccionar"]],
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Seleccionar": st.column_config.CheckboxColumn(required=True)
+                    }
+                )
+
+                # Verificar selección
+                seleccionados = df_sel[df_sel["Seleccionar"] == True]
+                if not seleccionados.empty:
+                    est_row = df_filtrado.loc[seleccionados.index[0]]
                     estudiante_seleccionado = est_row
                     st.session_state["estudiante_sel_id"] = int(est_row["estudiante_id"])
+
 
     if estudiante_seleccionado is None and st.session_state.get("estudiante_sel_id") is not None:
         est_id = st.session_state["estudiante_sel_id"]
