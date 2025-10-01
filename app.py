@@ -246,7 +246,19 @@ if seleccion != "":
         # =========================
         # Totales del estudiante
         # =========================
-        totales = df[df["estudiante_id"] == r["estudiante_id"]].groupby("valor")["puntos"].sum()
+        valores_df = leer_valores(colegio_id)  # todos los valores del colegio
+
+        totales = (
+            valores_df.merge(
+                df[df["estudiante_id"] == r["estudiante_id"]],
+                how="left",
+                left_on="nombre",
+                right_on="valor"
+            )[["nombre", "puntos"]]
+            .fillna(0)
+            .set_index("nombre")["puntos"]
+        )
+
         total_general = totales.sum()
 
         st.markdown(f"### 🧮 Total de puntos: **{total_general}**")
