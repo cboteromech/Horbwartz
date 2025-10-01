@@ -260,121 +260,83 @@ def asignar_puntos_fraternidad(fraternidad_id, valor_nombre, delta, profesor_id)
 st.title("🏆 Sistema de Puntos Hogwarts")
 tabs = st.tabs(["📊 Estadísticas", "🎓 Estudiantes", "🏠 Fraternidades", "👨‍🏫 Profesores"])
 
-# ---- TAB 1: Estadísticas ----
-with tabs[0]:
-    st.header("📊 Estadísticas generales del colegio")
-    q = text("""
-        SELECT f.nombre as fraternidad, COALESCE(SUM(p.cantidad),0) as total_puntos
-        FROM fraternidades f
-        JOIN estudiantes e ON e.fraternidad_id = f.id AND e.colegio_id = :cid
-        LEFT JOIN puntos p ON e.id = p.estudiante_id
-        GROUP BY f.nombre
-        ORDER BY total_puntos DESC
-    """)
-    with engine.connect() as conn:
-        stats = pd.read_sql(q, conn, params={"cid": colegio_id})
-
-    if not stats.empty:
-        st.dataframe(stats, use_container_width=True)
-        fig, ax = plt.subplots(figsize=(6,3))
-        stats.plot(kind="bar", x="fraternidad", y="total_puntos", ax=ax, legend=False)
-        ax.set_ylabel("Puntos")
-        ax.set_title("🏆 Comparativa de fraternidades")
-        st.pyplot(fig)
-    else:
-        st.info("ℹ️ No hay puntos registrados todavía.")
-
 # ---- TAB 2: Estudiantes ----
 with tabs[1]:
     st.header("🎓 Buscar y gestionar estudiantes")
     df = leer_resumen_estudiantes(colegio_id)
 
-    # Búsqueda rápida
-    with st.expander("🔎 Búsqueda rápida por estudiante", expanded=False):
-        # Construir una lista legible para el usuario
-        opciones = df.drop_duplicates(subset=["estudiante_id"]).apply(
-            lambda r: f"{r['codigo'] or ''} | {r['nombre']} {r['apellidos']} | {r['grado']} | {r['fraternidad'] or '-'}",
-            axis=1
-        ).tolist()
-
-        seleccion = st.selectbox("Escribe y selecciona un estudiante:", [""] + opciones)
-
-        estudiante_seleccionado = None
-        if seleccion and seleccion != "":
-            # Recuperar el ID correspondiente
-            est = df.drop_duplicates(subset=["estudiante_id"]).iloc[opciones.index(seleccion)]
-            estudiante_seleccionado = est
-            st.session_state["estudiante_sel_id"] = str(est["estudiante_id"])
-
-
-    # Buscador jerárquico
-    st.subheader("🎓 Buscar por grado y sección")
-    grados_unicos = df["grado"].dropna().astype(str).unique().tolist()
-
-    def partir_grado(g: str):
-        g = g.strip()
-        if len(g) >= 2 and g[:-1].isdigit() and g[-1:].isalpha():
-            return g[:-1], g[-1:].upper()
-        return None, None
-
-    grados_numeros = sorted({partir_grado(g)[0] for g in grados_unicos if partir_grado(g)[0]})
-    grado_sel = st.selectbox("Selecciona el grado:", [""] + grados_numeros, index=0)
-
     estudiante_seleccionado = None
 
-    if grado_sel != "":
-        secciones = sorted({partir_grado(g)[1] for g in grados_unicos if partir_grado(g)[0] == grado_sel})
-        seccion_sel = st.selectbox("Selecciona la sección:", [""] + secciones, index=0)
+    # ========================
+    # 🔎 Búsqueda por texto
+    # ========================
+    opciones = df.drop_duplicates(subset=["estudiante_id"]).apply(
+        lambda r: f"{r['codigo'] or ''} | {r['nombre']} {r['apellidos']} | {r['grado']} | {r['fraternidad'] or '-'}",
+        axis=1
+    ).tolist()
 
-        if seccion_sel != "":
-            grado_completo = f"{grado_sel}{seccion_sel}"
-            df_filtrado = (df[df["grado"] == grado_completo]
-                           .drop_duplicates(subset=["estudiante_id"])
-                           .sort_values(["apellidos", "nombre"], na_position="last"))
-            if df_filtrado.empty:
-                st.warning("⚠️ No hay estudiantes en este grado y sección.")
-            else:
-                # Tabla interactiva con checkbox de selección
-                df_filtrado = df_filtrado.reset_index(drop=True)
-                df_filtrado["Seleccionar"] = False
+    seleccion = st.selectbox("Escribe y selecciona un estudiante:", [""] + opciones)
 
-                # Agregamos estudiante_id aunque esté oculto
-                df_sel = st.data_editor(
-                    df_filtrado[["estudiante_id", "codigo", "nombre", "apellidos", "fraternidad", "grado", "puntos", "Seleccionar"]],
-                    use_container_width=True,
-                    hide_index=True,
-                    column_config={
-                        "Seleccionar": st.column_config.CheckboxColumn(required=True),
-                        "estudiante_id": None  # 👈 Esto oculta la columna en la tabla, pero sigue estando en el DF
-                    }
-                )
+    if seleccion and seleccion != "":
+        est = df.drop_duplicates(subset=["estudiante_id"]).iloc[opciones.index(seleccion)]
+        estudiante_seleccionado = est
+        st.session_state["estudiante_sel_id"] = str(est["estudiante_id"])
+        st.session_state["origen_busqueda"] = "texto"   # ✅ Marcamos origen textual
 
-                # Verificar selección
-                seleccionados = df_sel[df_sel["Seleccionar"] == True]
-                ids_seleccionados = seleccionados["estudiante_id"].astype(str).tolist()
+    # ========================
+    # 🎓 Búsqueda jerárquica
+    # ========================
+    if st.session_state.get("origen_busqueda") != "texto":
+        st.subheader("🎓 Buscar por grado y sección")
+        grados_unicos = df["grado"].dropna().astype(str).unique().tolist()
 
-                if ids_seleccionados:
-                    st.success(f"✅ {len(ids_seleccionados)} estudiantes seleccionados")
+        def partir_grado(g: str):
+            g = g.strip()
+            if len(g) >= 2 and g[:-1].isdigit() and g[-1:].isalpha():
+                return g[:-1], g[-1:].upper()
+            return None, None
 
-                    valores_df = leer_valores(colegio_id)
-                    if valores_df.empty:
-                        st.info("No hay valores configurados en el colegio.")
-                    else:
-                        st.subheader("➕ Asignar puntos a seleccionados")
-                        categoria = st.selectbox("Categoría", valores_df["nombre"].tolist(), key="categoria_masiva")
-                        delta = st.number_input("Puntos (+/-)", min_value=-50, max_value=50, value=1, step=1, key="delta_masiva")
+        grados_numeros = sorted({partir_grado(g)[0] for g in grados_unicos if partir_grado(g)[0]})
+        grado_sel = st.selectbox("Selecciona el grado:", [""] + grados_numeros, index=0)
 
-                        if st.button("Asignar puntos a seleccionados", type="primary", use_container_width=True):
-                            for est_id in ids_seleccionados:
-                                actualizar_puntos(str(est_id), str(categoria), int(delta), profesor_id)
-                            st.success(f"✅ {delta:+} puntos asignados a {len(ids_seleccionados)} estudiantes.")
-                            st.rerun()
+        if grado_sel != "":
+            secciones = sorted({partir_grado(g)[1] for g in grados_unicos if partir_grado(g)[0] == grado_sel})
+            seccion_sel = st.selectbox("Selecciona la sección:", [""] + secciones, index=0)
 
-                    # Además puedes seguir mostrando el detalle de un estudiante individual
-                    if len(ids_seleccionados) == 1:
-                        est_row = df_filtrado.loc[seleccionados.index[0]]
-                        estudiante_seleccionado = est_row
-                        st.session_state["estudiante_sel_id"] = str(est_row["estudiante_id"])
+            if seccion_sel != "":
+                grado_completo = f"{grado_sel}{seccion_sel}"
+                df_filtrado = (df[df["grado"] == grado_completo]
+                               .drop_duplicates(subset=["estudiante_id"])
+                               .sort_values(["apellidos", "nombre"], na_position="last"))
+
+                if df_filtrado.empty:
+                    st.warning("⚠️ No hay estudiantes en este grado y sección.")
+                else:
+                    df_filtrado = df_filtrado.reset_index(drop=True)
+                    df_filtrado["Seleccionar"] = False
+
+                    df_sel = st.data_editor(
+                        df_filtrado[["estudiante_id","codigo","nombre","apellidos","fraternidad","grado","puntos","Seleccionar"]],
+                        use_container_width=True,
+                        hide_index=True,
+                        column_config={
+                            "Seleccionar": st.column_config.CheckboxColumn(required=True),
+                            "estudiante_id": None
+                        }
+                    )
+
+                    seleccionados = df_sel[df_sel["Seleccionar"] == True]
+                    ids_seleccionados = seleccionados["estudiante_id"].astype(str).tolist()
+
+                    if ids_seleccionados:
+                        st.success(f"✅ {len(ids_seleccionados)} estudiantes seleccionados")
+                        st.session_state["origen_busqueda"] = "jerarquico"  # ✅ Marcamos origen jerárquico
+
+                        if len(ids_seleccionados) == 1:
+                            est_row = df_filtrado.loc[seleccionados.index[0]]
+                            estudiante_seleccionado = est_row
+                            st.session_state["estudiante_sel_id"] = str(est_row["estudiante_id"])
+
 
 
     if estudiante_seleccionado is None and st.session_state.get("estudiante_sel_id") is not None:
