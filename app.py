@@ -347,9 +347,12 @@ with tabs[1]:
 
         if seccion_sel != "":
             grado_completo = f"{grado_sel}{seccion_sel}"
+            # Agrupar por estudiante y sumar puntos
             df_filtrado = (df[df["grado"] == grado_completo]
-                           .drop_duplicates(subset=["estudiante_id"])
-                           .sort_values(["apellidos", "nombre"], na_position="last"))
+                           .groupby(["estudiante_id","codigo","nombre","apellidos","fraternidad","grado"], as_index=False)
+                           .agg({"puntos": "sum"})
+                           .sort_values(["apellidos","nombre"], na_position="last"))
+
 
             if df_filtrado.empty:
                 st.warning("⚠️ No hay estudiantes en este grado y sección.")
