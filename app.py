@@ -171,11 +171,15 @@ if seleccion != "":
         st.dataframe(tabla, use_container_width=True)
 
         # Gráfico de barras
-        fig, ax = plt.subplots(figsize=(6,3))
-        totales.plot(kind="bar", ax=ax, color="skyblue")
-        ax.set_ylabel("Puntos")
-        ax.set_title("Distribución de valores")
-        st.pyplot(fig)
+        if not totales.empty:
+            fig, ax = plt.subplots(figsize=(6,3))
+            totales.plot(kind="bar", ax=ax, color="skyblue")
+            ax.set_ylabel("Puntos")
+            ax.set_title("Distribución de valores")
+            st.pyplot(fig)
+        else:
+            st.info("ℹ️ Este estudiante aún no tiene puntos asignados.")
+
 
         # =========================
         # ➕ Asignar puntos
