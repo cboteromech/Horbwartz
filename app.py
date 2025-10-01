@@ -22,6 +22,29 @@ engine = create_engine(
     f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
     pool_pre_ping=True
 )
+# =========================
+# 📌 Login
+# =========================
+if "user" not in st.session_state:
+    st.sidebar.title("Acceso profesores")
+    email = st.sidebar.text_input("Correo", key="email")
+    password = st.sidebar.text_input("Contraseña", type="password", key="password")
+
+    if st.sidebar.button("Iniciar sesión"):
+        try:
+            user = supabase.auth.sign_in_with_password({"email": email, "password": password})
+            st.session_state["user"] = user.user
+            st.success(f"✅ Bienvenido {email}")
+            st.rerun()
+        except Exception as e:
+            st.error(f"❌ Error: {e}")
+    st.stop()
+else:
+    st.sidebar.write(f"Conectado como {st.session_state['user'].email}")
+    if st.sidebar.button("Cerrar sesión"):
+        supabase.auth.sign_out()
+        del st.session_state["user"]
+        st.rerun()
 
 # =========================
 # 🔑 Autenticación Supabase
