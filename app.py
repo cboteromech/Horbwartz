@@ -31,6 +31,33 @@ key: str = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
 
 # =========================
+# 📌 Obtener rol desde la tabla profesores
+# =========================
+def get_profesor(email):
+    with engine.connect() as conn:
+        query = text("""
+            SELECT id, rol, fraternidad_id, colegio_id, nombre_completo, asignatura, area, grados
+            FROM profesores
+            WHERE email=:email
+        """)
+        result = conn.execute(query, {"email": email}).fetchone()
+        return result
+
+
+rol, fraternidad_id, colegio_id, profesor_id = None, None, None, None
+nombre_completo, asignatura, area, grados = None, None, None, None
+
+if "user" in st.session_state:
+    profesor_data = get_profesor(st.session_state["user"].email)
+    if profesor_data:
+        profesor_id, rol, fraternidad_id, colegio_id, nombre_completo, asignatura, area, grados = profesor_data
+    else:
+        st.error("❌ No tienes un rol asignado en este colegio")
+        st.stop()
+
+
+
+# =========================
 # 📌 Login
 # =========================
 if "user" not in st.session_state:
@@ -70,31 +97,6 @@ else:
         del st.session_state["user"]
         st.rerun()
 
-
-# =========================
-# 📌 Obtener rol desde la tabla profesores
-# =========================
-def get_profesor(email):
-    with engine.connect() as conn:
-        query = text("""
-            SELECT id, rol, fraternidad_id, colegio_id, nombre_completo, asignatura, area, grados
-            FROM profesores
-            WHERE email=:email
-        """)
-        result = conn.execute(query, {"email": email}).fetchone()
-        return result
-
-
-rol, fraternidad_id, colegio_id, profesor_id = None, None, None, None
-nombre_completo, asignatura, area, grados = None, None, None, None
-
-if "user" in st.session_state:
-    profesor_data = get_profesor(st.session_state["user"].email)
-    if profesor_data:
-        profesor_id, rol, fraternidad_id, colegio_id, nombre_completo, asignatura, area, grados = profesor_data
-    else:
-        st.error("❌ No tienes un rol asignado en este colegio")
-        st.stop()
 
 
 # =========================
