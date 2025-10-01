@@ -493,16 +493,19 @@ if rol == "director":
             else:
                 auth_id = str(row[0])
                 try:
-                    # 1. Resetear contraseña
+                    # 1. Resetear contraseña en Supabase Auth
                     supabase.auth.admin.update_user_by_id(auth_id, {"password": nueva_pass})
 
-                    # 2. Disparar función de Supabase que envía el correo
-                    supabase.functions.invoke(
+                    # 2. Llamar a la Edge Function para enviar el correo
+                    resp = supabase.functions.invoke(
                         "send-password-email",
-                        data={"email": email_reset, "password": nueva_pass}
+                        {"email": email_reset, "password": nueva_pass}  # 👈 payload directo
                     )
 
+                    if resp.get("status_code") == 200:
+                        st.success(f"✅ Contraseña reseteada y enviada a {email_reset}")
+                    else:
+                        st.warning(f"⚠️ Contraseña cambiada, pero error al enviar correo: {resp}")
 
-                    st.success(f"✅ Contraseña reseteada y enviada a {email_reset}")
                 except Exception as e:
                     st.error(f"❌ Error al resetear contraseña: {e}")
