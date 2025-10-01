@@ -467,6 +467,49 @@ with tabs[1]:
                 st.success(f"{delta:+} puntos añadidos en {categoria}.")
                 st.rerun()
 
+    # ========================
+    # Agregar estudiante (solo director)
+    # ========================
+    if rol == "director":
+        st.subheader("➕ Agregar nuevo estudiante")
+
+        frats_df = leer_fraternidades(colegio_id)
+
+        with st.form("agregar_estudiante"):
+            codigo_n = st.text_input("Código")
+            nombre_n = st.text_input("Nombre")
+            apellidos_n = st.text_input("Apellidos")
+            grado_n = st.text_input("Grado (ej: 6A)")
+            fraternidad_n = st.selectbox("Fraternidad", 
+                                         frats_df["nombre"].tolist() if not frats_df.empty else [])
+
+            submit_new = st.form_submit_button("➕ Agregar estudiante")
+
+            if submit_new:
+                if not nombre_n or not apellidos_n or not grado_n:
+                    st.error("⚠️ Nombre, apellidos y grado son obligatorios.")
+                else:
+                    frat_id = int(frats_df.loc[frats_df["nombre"] == fraternidad_n, "id"].iloc[0]) if not frats_df.empty else None
+
+                    try:
+                        with engine.begin() as conn:
+                            conn.execute(text("""
+                                INSERT INTO estudiantes (codigo, nombre, apellidos, grado, fraternidad_id, colegio_id)
+                                VALUES (:codigo, :nombre, :apellidos, :grado, :frat, :colegio)
+                            """), {
+                                "codigo": (codigo_n or "").strip(),
+                                "nombre": nombre_n.strip(),
+                                "apellidos": apellidos_n.strip(),
+                                "grado": grado_n.strip(),
+                                "frat": frat_id,
+                                "colegio": str(colegio_id)
+                            })
+                        clear_all_caches()
+                        st.success("✅ Estudiante agregado exitosamente.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Error al agregar estudiante: {e}")
+
 
 # ---- TAB 3: Fraternidades ----
 with tabs[2]:
