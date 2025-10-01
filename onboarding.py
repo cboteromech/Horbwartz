@@ -10,33 +10,62 @@ supabase: Client = create_client(url, key)
 
 st.title("🔑 Restablecer tu contraseña")
 
-# Leer tokens directamente desde la URL
+# Script para mover tokens del hash (#) a query params
+st.markdown(
+    """
+    <script>
+    const hash = window.location.hash.substring(1);
+    if (hash) {
+        const params = new URLSearchParams(hash);
+        const access_token = params.get("access_token");
+        const refresh_token = params.get("refresh_token");
+        if (access_token) {
+            const query = new URLSearchParams({
+                access_token: access_token,
+                refresh_token: refresh_token
+            });
+            const baseUrl = window.location.href.split("#")[0];
+            window.location.href = baseUrl + "?" + query.toString();
+        }
+    }
+    </script>
+    """,
+    unsafe_allow_html=True
+)
+
+# Leer los tokens desde query params
 params = st.query_params
 access_token = params.get("access_token", None)
 refresh_token = params.get("refresh_token", None)
 
 if not access_token:
-    st.info("⏳ Procesando invitación... El enlace aún no contiene credenciales.")
+    st.info("⏳ Procesando invitación... espera un momento.")
     st.stop()
 
-# Ya validado: si hay tokens, es que el correo fue correcto
+# Mostrar formulario para nueva contraseña
 with st.form("reset_password"):
     nueva_pass = st.text_input("Nueva contraseña", type="password")
     confirmar_pass = st.text_input("Confirmar contraseña", type="password")
     submit = st.form_submit_button("Actualizar")
 
     if submit:
-        if not nueva_pass or nueva_pass != confirmar_pass:
+        if not nueva_pass or not confirmar_pass:
+            st.error("⚠️ Completa ambos campos.")
+        elif nueva_pass != confirmar_pass:
             st.error("⚠️ Las contraseñas no coinciden.")
         else:
             try:
-                # Crear sesión usando tokens del Magic Link
-                supabase.auth.set_session(access_token, refresh_token)
+                # Establecer sesión con Supabase
+                supabase.auth.set_session({
+                    "access_token": access_token,
+                    "refresh_token": refresh_token
+                })
 
                 # Actualizar contraseña
                 supabase.auth.update_user({"password": nueva_pass})
 
                 st.success("✅ Contraseña cambiada correctamente.")
-                st.markdown("[🔑 Ir al login](https://horbwartz-zheasdtrshxosf7izr9fv9.streamlit.app/)")
+                # Después de reset, puedes redirigir al login de la app principal
+                st.markdown("[🔑 Ir al sistema de puntos](https://horbwartz-zheasdtrshxosf7izr9fv9.streamlit.app/)")
             except Exception as e:
                 st.error(f"❌ Error: {e}")

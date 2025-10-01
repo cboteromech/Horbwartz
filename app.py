@@ -483,7 +483,9 @@ if rol == "director":
             try:
                 supabase.auth.sign_in_with_otp({
                     "email": email_magic,
-                    "email_redirect_to": "https://hogwartznewteacher.streamlit.app/"
+                    "options": {
+                        "email_redirect_to": "https://resethogwartz.streamlit.app/"
+                    }
                 })
                 st.success(f"✅ Se envió un Magic Link a {email_magic}.")
             except Exception as e:
