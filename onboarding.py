@@ -28,6 +28,7 @@ st.markdown(
                 access_token: access_token,
                 refresh_token: refresh_token
             });
+            // 👇 Reemplaza el hash por query params
             window.location.replace(window.location.pathname + "?" + query.toString());
         }
     }
@@ -36,12 +37,12 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# 👇 Si hay fragmento, paramos aquí para que el script haga el redirect
-if "#" in st.experimental_get_query_params():
+# 👇 Si todavía viene con hash, paramos y dejamos que el JS haga el redirect
+if st.query_params.get("access_token") is None and "#" in st.experimental_get_urlquery():  
     st.stop()
 
 # =========================
-# 📌 Ahora sí leemos de query_params
+# 📌 Ahora sí leemos tokens
 # =========================
 access_token = st.query_params.get("access_token")
 refresh_token = st.query_params.get("refresh_token")
@@ -65,7 +66,6 @@ with st.form("crear_contrasena"):
             st.error("❌ Las contraseñas no coinciden.")
         else:
             try:
-                # 👇 Establecemos la sesión con los tokens del link
                 supabase.auth.set_session(
                     {"access_token": access_token, "refresh_token": refresh_token}
                 )
