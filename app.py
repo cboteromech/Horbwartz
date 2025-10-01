@@ -207,18 +207,19 @@ def actualizar_puntos(estudiante_id, valor_nombre, delta, profesor_id=None):
         if not valor_q:
             st.error("⚠️ El valor no existe en este colegio.")
             return
-        valor_id = int(valor_q[0])
+        valor_id = str(valor_q[0])   # ✅ Guardar como texto
 
         conn.execute(text("""
             INSERT INTO puntos (estudiante_id, valor_id, cantidad, profesor_id)
             VALUES (:estudiante_id, :valor_id, :cantidad, :profesor_id)
         """), {
-            "estudiante_id": int(estudiante_id),
+            "estudiante_id": str(estudiante_id),  # ✅ UUID como texto
             "valor_id": valor_id,
-            "cantidad": int(delta),
-            "profesor_id": int(prof_id)
+            "cantidad": int(delta),              # ✅ numérico
+            "profesor_id": str(prof_id)          # ✅ UUID como texto
         })
     clear_all_caches()
+
 
 def asignar_puntos_fraternidad(fraternidad_id, valor_nombre, delta, profesor_id):
     if delta == 0:
@@ -232,11 +233,11 @@ def asignar_puntos_fraternidad(fraternidad_id, valor_nombre, delta, profesor_id)
         if not valor_q:
             st.error("⚠️ El valor no existe en este colegio.")
             return
-        valor_id = int(valor_q[0])
+        valor_id = str(valor_q[0])   # ✅ Guardar como texto
 
         estudiantes = conn.execute(
             text("SELECT id FROM estudiantes WHERE fraternidad_id=:fid AND colegio_id=:cid"),
-            {"fid": int(fraternidad_id), "cid": int(colegio_id)}
+            {"fid": str(fraternidad_id), "cid": str(colegio_id)}
         ).fetchall()
 
         for (est_id,) in estudiantes:
@@ -244,12 +245,13 @@ def asignar_puntos_fraternidad(fraternidad_id, valor_nombre, delta, profesor_id)
                 INSERT INTO puntos (estudiante_id, valor_id, cantidad, profesor_id)
                 VALUES (:eid, :valor_id, :cantidad, :profesor_id)
             """), {
-                "eid": int(est_id),
+                "eid": str(est_id),             # ✅ UUID como texto
                 "valor_id": valor_id,
-                "cantidad": int(delta),
-                "profesor_id": int(profesor_id)
+                "cantidad": int(delta),         # ✅ numérico
+                "profesor_id": str(profesor_id) # ✅ UUID como texto
             })
     clear_all_caches()
+
 
 # =========================
 # 🏆 App principal (tabs)
