@@ -46,9 +46,12 @@ with st.form("reset_form"):
                     nuevo_email = f"{cedula}@hogwartz.edu"  # email institucional
                     nueva_pass = cedula  # clave = cedula
 
+                    # 👀 Importante: asegurar que auth_id sea string
+                    auth_id = str(prof.auth_id)
+
                     # 🔑 Actualizar en Supabase Auth
                     supabase.auth.admin.update_user_by_id(
-                        prof.auth_id,
+                        auth_id,
                         {"email": nuevo_email, "password": nueva_pass}
                     )
 
@@ -59,8 +62,12 @@ with st.form("reset_form"):
                             {"email": nuevo_email, "id": prof.id}
                         )
 
-                    st.success(f"✅ Acceso reseteado. Ahora puede entrar con:\n- **Usuario:** {nuevo_email}\n- **Contraseña:** {cedula}")
-                    st.markdown("[Ir al login](https://horbwartz-zheasdtrshxosf7izr9fv9.streamlit.app/)")
+                    st.success(
+                        f"✅ Acceso reseteado. Ahora puede entrar con:\n\n"
+                        f"- **Usuario:** `{nuevo_email}`\n"
+                        f"- **Contraseña:** `{cedula}`"
+                    )
+                    st.markdown("[🔑 Ir al login](https://horbwartz-zheasdtrshxosf7izr9fv9.streamlit.app/)", unsafe_allow_html=True)
 
             except Exception as e:
-                st.error(f"❌ Error: {e}")
+                st.error(f"❌ Error al resetear acceso: {str(e)}")
