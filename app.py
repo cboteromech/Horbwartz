@@ -305,6 +305,79 @@ if seleccion != "":
                 st.success(f"{delta:+} puntos añadidos en {categoria}.")
                 st.rerun()
 
+# =======================================================
+# 🔎 Buscador jerárquico por grado y sección
+# =======================================================
+st.header("🎓 Buscar estudiante por grado y sección")
+
+# Sacamos los grados únicos (ejemplo: "6A", "6B", "7C")
+grados_unicos = df["grado"].dropna().unique()
+grados_numeros = sorted(set([g[:-1] for g in grados_unicos if len(g) > 1]))  # extrae solo el número
+grado_sel = st.selectbox("Selecciona el grado:", [""] + grados_numeros)
+
+estudiante_seleccionado = None
+
+if grado_sel != "":
+    # Filtramos secciones de ese grado
+    secciones = sorted(set([g[-1] for g in grados_unicos if g.startswith(grado_sel)]))
+    seccion_sel = st.selectbox("Selecciona la sección:", [""] + secciones)
+
+    if seccion_sel != "":
+        grado_completo = f"{grado_sel}{seccion_sel}"
+        df_filtrado = df[df["grado"] == grado_completo].drop_duplicates(subset=["estudiante_id"])
+
+        if df_filtrado.empty:
+            st.warning("⚠️ No hay estudiantes en este grado y sección.")
+        else:
+            st.subheader(f"👥 Estudiantes de {grado_completo}")
+            st.dataframe(df_filtrado[["codigo", "nombre", "apellidos", "fraternidad", "grado"]], use_container_width=True)
+
+            # Seleccionar estudiante
+            codigos = df_filtrado["codigo"].tolist()
+            codigo_sel = st.selectbox("Selecciona un estudiante:", [""] + codigos)
+
+            if codigo_sel != "":
+                estudiante_seleccionado = df_filtrado[df_filtrado["codigo"] == codigo_sel].iloc[0]
+
+# =======================================================
+# 📌 Mostrar detalles del estudiante seleccionado
+# =======================================================
+if estudiante_seleccionado is not None:
+    r = estudiante_seleccionado
+    st.subheader(f"👤 {r['nombre']} {r['apellidos']} | 🎓 {r['grado']} | 🏠 {r['fraternidad']}")
+
+    # Totales
+    valores_df = leer_valores(colegio_id)
+    totales = (
+        valores_df.merge(
+            df[df["estudiante_id"] == r["estudiante_id"]],
+            how="left",
+            left_on="nombre",
+            right_on="valor"
+        )
+        .fillna({"puntos": 0})
+        .rename(columns={"nombre": "valor_nombre"})
+    )
+    totales = totales.groupby("valor_nombre")["puntos"].sum()
+    total_general = totales.sum()
+
+    st.markdown(f"### 🧮 Total de puntos: **{total_general}**")
+
+    # Tabla
+    tabla = totales.reset_index()
+    tabla.columns = ["Valor", "Puntos"]
+    st.dataframe(tabla, use_container_width=True)
+
+    # Gráfico
+    fig, ax = plt.subplots(figsize=(6,3))
+    totales.plot(kind="bar", ax=ax, color="skyblue")
+    ax.set_ylabel("Puntos")
+    ax.set_title("Distribución de valores")
+    st.pyplot(fig)
+
+    # Asignar puntos
+    st.subheader("➕ Asignar puntos")
+    categoria = st.selectbox("Categoría", valores_df["nombre"].tolist())
 
         # =========================
         # ✏️ Editar datos completos (solo DIRECTOR)
