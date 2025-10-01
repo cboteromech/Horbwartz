@@ -155,7 +155,7 @@ def actualizar_estudiante_full(estudiante_id, codigo, nombre, apellidos, grado, 
             "nombre": (nombre or "").strip(),
             "apellidos": (apellidos or "").strip(),
             "grado": (grado or "").strip(),
-            "frat": str(fraternidad_id) if fraternidad_id else None,
+            "frat": str(fraternidad_id) if fraternidad_id else None,  # ✅ UUID como string
             "id": str(estudiante_id)
         })
     clear_all_caches()
@@ -170,8 +170,8 @@ def insertar_estudiante(codigo, nombre, apellidos, grado, fraternidad_id, colegi
             "nombre": nombre.strip(),
             "apellidos": apellidos.strip(),
             "grado": grado.strip(),
-            "frat": str(fraternidad_id) if fraternidad_id else None,
-            "colegio": str(colegio_id)
+            "frat": str(fraternidad_id) if fraternidad_id else None,  # ✅ UUID como string
+            "colegio": str(colegio_id)  # ✅ UUID como string
         })
     clear_all_caches()
 
@@ -239,6 +239,7 @@ def asignar_puntos_fraternidad(fraternidad_id, valor_nombre, delta, profesor_id)
                 "profesor_id": str(profesor_id)
             })
     clear_all_caches()
+
 # =========================
 # 🏆 App principal (tabs)
 # =========================
