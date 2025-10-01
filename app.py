@@ -335,12 +335,14 @@ with tabs[1]:
                 df_filtrado = df_filtrado.reset_index(drop=True)
                 df_filtrado["Seleccionar"] = False
 
+                # Agregamos estudiante_id aunque esté oculto
                 df_sel = st.data_editor(
-                    df_filtrado[["codigo", "nombre", "apellidos", "fraternidad", "grado", "puntos", "Seleccionar"]],
+                    df_filtrado[["estudiante_id", "codigo", "nombre", "apellidos", "fraternidad", "grado", "puntos", "Seleccionar"]],
                     use_container_width=True,
                     hide_index=True,
                     column_config={
-                        "Seleccionar": st.column_config.CheckboxColumn(required=True)
+                        "Seleccionar": st.column_config.CheckboxColumn(required=True),
+                        "estudiante_id": None  # 👈 Esto oculta la columna en la tabla, pero sigue estando en el DF
                     }
                 )
 
