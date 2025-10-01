@@ -247,10 +247,11 @@ if seleccion != "":
         # Totales del estudiante
         # =========================
         valores_df = leer_valores(colegio_id)  # todos los valores del colegio
+        df_estudiante = df[df["estudiante_id"] == r["estudiante_id"]][["valor", "puntos"]]
 
         totales = (
             valores_df.merge(
-                df[df["estudiante_id"] == r["estudiante_id"]],
+                df_estudiante,
                 how="left",
                 left_on="nombre",
                 right_on="valor"
@@ -258,18 +259,20 @@ if seleccion != "":
             .fillna({"puntos": 0})
         )
 
-        # Nos quedamos solo con columnas relevantes
-        totales = totales[["nombre", "puntos"]].groupby("nombre")["puntos"].sum()
+        # Normalizamos nombres de columnas
+        totales = totales.rename(columns={"nombre": "valor_nombre"})[["valor_nombre", "puntos"]]
+
+        # Agrupamos para garantizar único valor por categoría
+        totales = totales.groupby("valor_nombre")["puntos"].sum()
 
         # Ahora 'totales' es una Serie con índice = nombre del valor
-
         total_general = totales.sum()
 
         st.markdown(f"### 🧮 Total de puntos: **{total_general}**")
 
         # Mostrar tabla con todos los valores
         tabla = totales.reset_index()
-        tabla.columns = ["Valor", "Puntos"]  # renombrar columnas
+        tabla.columns = ["Valor", "Puntos"]
         st.dataframe(tabla, use_container_width=True)
 
         # Gráfico de barras
@@ -281,6 +284,7 @@ if seleccion != "":
             st.pyplot(fig)
         else:
             st.info("ℹ️ Este estudiante aún no tiene puntos asignados.")
+
 
 
 
