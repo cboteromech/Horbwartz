@@ -331,10 +331,6 @@ with tabs[1]:
             if df_filtrado.empty:
                 st.warning("⚠️ No hay estudiantes en este grado y sección.")
             else:
-                st.markdown(f"### 👥 Estudiantes de {grado_completo}")
-                st.dataframe(df_filtrado[["codigo", "nombre", "apellidos", "fraternidad", "grado", "puntos"]],
-                             use_container_width=True, hide_index=True)
-
                 # Tabla interactiva con checkbox de selección
                 df_filtrado = df_filtrado.reset_index(drop=True)
                 df_filtrado["Seleccionar"] = False
@@ -350,10 +346,30 @@ with tabs[1]:
 
                 # Verificar selección
                 seleccionados = df_sel[df_sel["Seleccionar"] == True]
-                if not seleccionados.empty:
-                    est_row = df_filtrado.loc[seleccionados.index[0]]
-                    estudiante_seleccionado = est_row
-                    st.session_state["estudiante_sel_id"] = int(est_row["estudiante_id"])
+                ids_seleccionados = seleccionados["estudiante_id"].astype(str).tolist()
+
+                if ids_seleccionados:
+                    st.success(f"✅ {len(ids_seleccionados)} estudiantes seleccionados")
+
+                    valores_df = leer_valores(colegio_id)
+                    if valores_df.empty:
+                        st.info("No hay valores configurados en el colegio.")
+                    else:
+                        st.subheader("➕ Asignar puntos a seleccionados")
+                        categoria = st.selectbox("Categoría", valores_df["nombre"].tolist(), key="categoria_masiva")
+                        delta = st.number_input("Puntos (+/-)", min_value=-50, max_value=50, value=1, step=1, key="delta_masiva")
+
+                        if st.button("Asignar puntos a seleccionados", type="primary", use_container_width=True):
+                            for est_id in ids_seleccionados:
+                                actualizar_puntos(str(est_id), str(categoria), int(delta), profesor_id)
+                            st.success(f"✅ {delta:+} puntos asignados a {len(ids_seleccionados)} estudiantes.")
+                            st.rerun()
+
+                    # Además puedes seguir mostrando el detalle de un estudiante individual
+                    if len(ids_seleccionados) == 1:
+                        est_row = df_filtrado.loc[seleccionados.index[0]]
+                        estudiante_seleccionado = est_row
+                        st.session_state["estudiante_sel_id"] = str(est_row["estudiante_id"])
 
 
     if estudiante_seleccionado is None and st.session_state.get("estudiante_sel_id") is not None:
