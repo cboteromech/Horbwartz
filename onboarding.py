@@ -18,7 +18,7 @@ st.write("Crea tu nueva contraseña para acceder al sistema.")
 st.markdown(
     """
     <script>
-    const hash = window.location.hash.substring(1); // sin el #
+    const hash = window.location.hash.substring(1); 
     if (hash) {
         const params = new URLSearchParams(hash);
         const access_token = params.get("access_token");
@@ -28,16 +28,15 @@ st.markdown(
                 access_token: access_token,
                 refresh_token: refresh_token
             });
-            // 👇 Mantener dominio + ruta completa sin el hash
+            // 👇 Forzar redirección completa con tokens en ?query
             const baseUrl = window.location.href.split("#")[0];
-            window.location.replace(baseUrl + "?" + query.toString());
+            window.location.href = baseUrl + "?" + query.toString();
         }
     }
     </script>
     """,
     unsafe_allow_html=True
 )
-
 
 # =========================
 # 📌 Leemos tokens de query_params
