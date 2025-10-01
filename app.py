@@ -121,7 +121,12 @@ def leer_resumen_estudiantes(colegio_id) -> pd.DataFrame:
 @st.cache_data(ttl=60)
 def leer_historial_puntos(estudiante_id, colegio_id) -> pd.DataFrame:
     query = text("""
-        SELECT p.id, v.nombre as valor, p.cantidad, pr.nombre as profesor, p.created_at
+        SELECT 
+            p.id, 
+            v.nombre as valor, 
+            p.cantidad, 
+            (pr.nombres || ' ' || pr.apellidos) as profesor, 
+            p.created_at
         FROM puntos p
         JOIN valores v ON v.id = p.valor_id
         LEFT JOIN profesores pr ON pr.id = p.profesor_id
@@ -132,6 +137,7 @@ def leer_historial_puntos(estudiante_id, colegio_id) -> pd.DataFrame:
     with engine.connect() as conn:
         df = pd.read_sql(query, conn, params={"eid": estudiante_id, "cid": colegio_id})
     return df
+
 
 @st.cache_data(ttl=60)
 def leer_valores(colegio_id) -> pd.DataFrame:
@@ -275,7 +281,7 @@ if seleccion != "":
         # =========================
         # ✏️ Editar datos completos (solo DIRECTOR)
         # =========================
-        # =========================
+# =========================
 # ➕ Añadir nuevo estudiante (solo DIRECTOR)
 # =========================
         if rol == "director":
