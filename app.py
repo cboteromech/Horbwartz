@@ -426,9 +426,9 @@ with tabs[1]:
                     st.success("✅ Estudiante actualizado correctamente.")
                     st.rerun()
 
-            st.subheader("📋 Historial de puntos")
-            historial = leer_historial_puntos(int(r["estudiante_id"]), colegio_id)
-            st.dataframe(historial, use_container_width=True, hide_index=True)
+            #st.subheader("📋 Historial de puntos")
+            #historial = leer_historial_puntos(int(r["estudiante_id"]), colegio_id)
+            #st.dataframe(historial, use_container_width=True, hide_index=True)
 
 # ---- TAB 3: Fraternidades ----
 with tabs[2]:
