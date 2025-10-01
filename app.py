@@ -113,7 +113,6 @@ def actualizar_puntos(estudiante_id, valor_nombre, delta, profesor_id=None):
 # 🏆 App principal
 # =========================
 df = leer_resumen_estudiantes(colegio_id)
-historial = leer_historial_puntos(r["estudiante_id"], colegio_id)
 
 st.title("🏆 Sistema de Puntos Hogwarts")
 
@@ -219,9 +218,8 @@ if seleccion != "":
                     st.success(f"✅ Estudiante {nombre} {apellido} agregado correctamente.")
                     st.rerun()
 
-        # =========================
-        # 📋 Historial de puntos
-        # =========================
+       # 📋 Historial de puntos
         st.subheader("📋 Historial de puntos")
-        historial = leer_historial_puntos(r["estudiante_id"])
+        historial = leer_historial_puntos(r["estudiante_id"], colegio_id)  # 👈 pasa también el colegio_id
         st.dataframe(historial, use_container_width=True)
+
