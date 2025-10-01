@@ -98,6 +98,13 @@ def leer_historial_puntos(estudiante_id, colegio_id) -> pd.DataFrame:
     with engine.connect() as conn:
         df = pd.read_sql(query, conn, params={"eid": estudiante_id, "cid": colegio_id})
     return df
+    
+@st.cache_data(ttl=60)
+def leer_valores(colegio_id) -> pd.DataFrame:
+    query = text("SELECT id, nombre FROM valores WHERE colegio_id = :cid ORDER BY nombre")
+    with engine.connect() as conn:
+        df = pd.read_sql(query, conn, params={"cid": colegio_id})
+    return df
 
 def actualizar_estudiante_full(estudiante_id, codigo, nombre, apellidos, grado, fraternidad_id):
     with engine.begin() as conn:
@@ -185,12 +192,19 @@ if seleccion != "":
         # ➕ Asignar puntos
         # =========================
         st.subheader("➕ Asignar puntos")
-        categoria = st.selectbox("Categoría", df["valor"].unique().tolist())
-        delta = st.number_input("Puntos (+/-)", -10, 10, 1)
-        if st.button("Actualizar puntos"):
-            actualizar_puntos(r["estudiante_id"], categoria, delta, profesor_id)
-            st.success(f"{delta:+} puntos añadidos en {categoria}.")
-            st.rerun()
+
+        valores_df = leer_valores(colegio_id)
+
+        if valores_df.empty:
+            st.warning("⚠️ Este colegio aún no tiene valores definidos.")
+        else:
+            categoria = st.selectbox("Categoría", valores_df["nombre"].tolist())
+            delta = st.number_input("Puntos (+/-)", -10, 10, 1)
+            if st.button("Actualizar puntos"):
+                actualizar_puntos(r["estudiante_id"], categoria, delta, profesor_id)
+                st.success(f"{delta:+} puntos añadidos en {categoria}.")
+                st.rerun()
+
 
         # =========================
         # ✏️ Editar datos completos (solo DIRECTOR)
