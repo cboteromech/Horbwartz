@@ -175,12 +175,44 @@ def actualizar_puntos(estudiante_id, valor_nombre, delta, profesor_id=None):
         })
     st.cache_data.clear()
 
+@st.cache_data(ttl=60)
+def leer_estadisticas_fraternidades(colegio_id):
+    query = text("""
+        SELECT f.nombre as fraternidad, SUM(COALESCE(p.cantidad,0)) as total_puntos
+        FROM estudiantes e
+        JOIN fraternidades f ON e.fraternidad_id = f.id
+        LEFT JOIN puntos p ON e.id = p.estudiante_id
+        WHERE e.colegio_id = :cid
+        GROUP BY f.nombre
+        ORDER BY total_puntos DESC
+    """)
+    with engine.connect() as conn:
+        df = pd.read_sql(query, conn, params={"cid": colegio_id})
+    return df
+
+
 # =========================
 # 🏆 App principal
 # =========================
 df = leer_resumen_estudiantes(colegio_id)
 
 st.title("🏆 Sistema de Puntos Hogwarts")
+
+st.header("📊 Estadísticas generales del colegio")
+
+stats = leer_estadisticas_fraternidades(colegio_id)
+
+if not stats.empty:
+    st.dataframe(stats, use_container_width=True)
+
+    fig, ax = plt.subplots(figsize=(6,3))
+    stats.plot(kind="bar", x="fraternidad", y="total_puntos", ax=ax, color="orange", legend=False)
+    ax.set_ylabel("Puntos")
+    ax.set_title("🏆 Comparativa de fraternidades")
+    st.pyplot(fig)
+else:
+    st.info("ℹ️ No hay puntos registrados todavía.")
+
 
 # =======================================================
 # 🔎 Buscar estudiante
@@ -247,52 +279,32 @@ if seleccion != "":
 # ➕ Añadir nuevo estudiante (solo DIRECTOR)
 # =========================
         if rol == "director":
-            st.header("➕ Añadir nuevo estudiante")
+            st.header("✏️ Editar estudiante")
+            with st.form("editar_estudiante"):
+                codigo_edit = st.text_input("Código", value=r["codigo"])
+                nombre_edit = st.text_input("Nombre", value=r["nombre"])
+                apellidos_edit = st.text_input("Apellidos", value=r["apellidos"])
+                grado_edit = st.text_input("Grado", value=r["grado"])
 
-            # Obtener fraternidades del colegio
-            with engine.connect() as conn:
-                frats = pd.read_sql(
-                    text("SELECT id, nombre FROM fraternidades WHERE colegio_id=:cid"),
-                    conn,
-                    params={"cid": colegio_id}
+                # Obtener fraternidades disponibles
+                with engine.connect() as conn:
+                    frats = pd.read_sql(
+                        text("SELECT id, nombre FROM fraternidades WHERE colegio_id=:cid"),
+                        conn,
+                        params={"cid": colegio_id}
+                    )
+
+                fraternidad_edit = st.selectbox(
+                    "Fraternidad",
+                    frats["nombre"].tolist(),
+                    index=frats["nombre"].tolist().index(r["fraternidad"]) if r["fraternidad"] in frats["nombre"].tolist() else 0
                 )
 
-            c1, c2, c3, c4 = st.columns(4)
-            with c1: codigo = st.text_input("Código")
-            with c2: nombre = st.text_input("Nombre")
-            with c3: apellido = st.text_input("Apellidos")
-            with c4: grado = st.text_input("Grado", placeholder="Ej: 6A, 8C...")
-
-            fraternidad_sel = st.selectbox(
-                "Fraternidad", 
-                frats["nombre"].tolist() if not frats.empty else ["Sin fraternidad"]
-            )
-
-            if st.button("Agregar estudiante"):
-                if not codigo or not nombre or not apellido or not grado:
-                    st.error("⚠️ Todos los campos son obligatorios.")
-                elif df["codigo"].astype(str).eq(str(codigo).strip()).any():
-                    st.error("⚠️ Ya existe un estudiante con ese código.")
-                else:
-                    frat_id = None
-                    if not frats.empty and fraternidad_sel in frats["nombre"].tolist():
-                        frat_id = frats.loc[frats["nombre"] == fraternidad_sel, "id"].iloc[0]
-
-                    with engine.begin() as conn:
-                        conn.execute(text("""
-                            INSERT INTO estudiantes (codigo, nombre, apellidos, grado, fraternidad_id, colegio_id)
-                            VALUES (:codigo, :nombre, :apellido, :grado, :frat, :colegio)
-                        """), {
-                            "codigo": codigo.strip(),
-                            "nombre": nombre.strip(),
-                            "apellido": apellido.strip(),
-                            "grado": grado.strip(),
-                            "frat": frat_id,
-                            "colegio": colegio_id
-                        })
-
-                    st.cache_data.clear()
-                    st.success(f"✅ Estudiante {nombre} {apellido} agregado correctamente.")
+                submit = st.form_submit_button("💾 Guardar cambios")
+                if submit:
+                    frat_id = frats.loc[frats["nombre"] == fraternidad_edit, "id"].iloc[0]
+                    actualizar_estudiante_full(r["estudiante_id"], codigo_edit, nombre_edit, apellidos_edit, grado_edit, frat_id)
+                    st.success("✅ Estudiante actualizado correctamente.")
                     st.rerun()
 
        # 📋 Historial de puntos
