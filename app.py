@@ -143,8 +143,9 @@ def leer_historial_puntos(estudiante_id: int, colegio_id: int) -> pd.DataFrame:
         FROM puntos p
         JOIN valores v ON v.id = p.valor_id
         LEFT JOIN profesores pr ON pr.id = p.profesor_id
+        JOIN estudiantes e ON e.id = p.estudiante_id
         WHERE p.estudiante_id = :eid
-          AND p.colegio_id = :cid
+          AND e.colegio_id = :cid
         ORDER BY p.created_at DESC
     """)
     with engine.connect() as conn:
@@ -153,7 +154,6 @@ def leer_historial_puntos(estudiante_id: int, colegio_id: int) -> pd.DataFrame:
             "cid": int(colegio_id)
         })
     return df
-
 
 @st.cache_data(ttl=60)
 def leer_valores(colegio_id: int) -> pd.DataFrame:
