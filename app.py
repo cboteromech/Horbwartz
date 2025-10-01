@@ -290,19 +290,22 @@ with tabs[1]:
     df = leer_resumen_estudiantes(colegio_id)
 
     # Búsqueda rápida
-    with st.expander("🔎 Búsqueda rápida por texto", expanded=False):
-        q_text = st.text_input("Buscar (código, nombre o apellidos):", "")
-        if q_text.strip():
-            mask = (
-                df["codigo"].fillna("").str.contains(q_text, case=False, na=False) |
-                df["nombre"].fillna("").str.contains(q_text, case=False, na=False) |
-                df["apellidos"].fillna("").str.contains(q_text, case=False, na=False)
-            )
-            resultados = (df[mask]
-                          .drop_duplicates(subset=["estudiante_id"])
-                          .loc[:, ["codigo", "nombre", "apellidos", "fraternidad", "grado", "puntos"]]
-                         )
-            st.dataframe(resultados, use_container_width=True)
+    with st.expander("🔎 Búsqueda rápida por estudiante", expanded=False):
+        # Construir una lista legible para el usuario
+        opciones = df.drop_duplicates(subset=["estudiante_id"]).apply(
+            lambda r: f"{r['codigo'] or ''} | {r['nombre']} {r['apellidos']} | {r['grado']} | {r['fraternidad'] or '-'}",
+            axis=1
+        ).tolist()
+
+        seleccion = st.selectbox("Escribe y selecciona un estudiante:", [""] + opciones)
+
+        estudiante_seleccionado = None
+        if seleccion and seleccion != "":
+            # Recuperar el ID correspondiente
+            est = df.drop_duplicates(subset=["estudiante_id"]).iloc[opciones.index(seleccion)]
+            estudiante_seleccionado = est
+            st.session_state["estudiante_sel_id"] = str(est["estudiante_id"])
+
 
     # Buscador jerárquico
     st.subheader("🎓 Buscar por grado y sección")
