@@ -421,7 +421,6 @@ if rol == "director":
             if not email_prof or not nombres_prof or not apellidos_prof:
                 st.error("❌ Debes llenar al menos email, nombres y apellidos.")
             else:
-                # ✅ Obtener el UUID de la fraternidad como string
                 frat_id = str(frats.loc[frats["nombre"] == fraternidad_prof, "id"].iloc[0])
                 try:
                     with engine.begin() as conn:
@@ -437,19 +436,15 @@ if rol == "director":
                             "asignatura": asignatura_prof or None,
                             "area": area_prof or None,
                             "grados": grados_prof or None,
-                            "frat": frat_id,             # 👈 ahora UUID válido
-                            "colegio": str(colegio_id)   # 👈 también casteado a string
+                            "frat": frat_id,
+                            "colegio": str(colegio_id)
                         })
-                    # Crear también el usuario en Supabase
+                    # Enviar invitación de Supabase
                     try:
-                        supabase.auth.admin.create_user({
-                            "email": email_prof,
-                            "password": "temporal123",
-                            "email_confirm": True
-                        })
-                        st.success("✅ Profesor agregado y usuario creado en Supabase (contraseña: temporal123)")
+                        supabase.auth.admin.invite_user_by_email(email_prof)
+                        st.success(f"✅ Profesor agregado y se envió invitación a {email_prof} para que cree su contraseña.")
                     except Exception as e:
-                        st.warning(f"⚠️ Profesor creado en DB, pero error en Supabase: {e}")
+                        st.warning(f"⚠️ Profesor creado en DB, pero error al invitarlo en Supabase: {e}")
                     st.rerun()
                 except Exception as e:
                     st.error(f"❌ Error al crear profesor en la base de datos: {e}")
