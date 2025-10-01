@@ -22,6 +22,14 @@ engine = create_engine(
     f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
     pool_pre_ping=True
 )
+
+# =========================
+# 🔑 Autenticación Supabase (debe ir ANTES del login)
+# =========================
+url: str = st.secrets["SUPABASE_URL"]
+key: str = st.secrets["SUPABASE_KEY"]
+supabase: Client = create_client(url, key)
+
 # =========================
 # 📌 Login
 # =========================
@@ -46,12 +54,6 @@ else:
         del st.session_state["user"]
         st.rerun()
 
-# =========================
-# 🔑 Autenticación Supabase
-# =========================
-url: str = st.secrets["SUPABASE_URL"]
-key: str = st.secrets["SUPABASE_KEY"]
-supabase: Client = create_client(url, key)
 
 # =========================
 # 📌 Obtener rol desde la tabla profesores
