@@ -1,61 +1,59 @@
-# resethogwartz/app.py
 import streamlit as st
+from sqlalchemy import create_engine, text
 from supabase import create_client, Client
 
-st.set_page_config(page_title="Resetear contraseña", page_icon="🔑")
+# =========================
+# Configuración
+# =========================
+st.set_page_config(page_title="Resetear Contraseña", page_icon="🔑")
+
+DB_USER = st.secrets["DB_USER"]
+DB_PASS = st.secrets["DB_PASS"]
+DB_HOST = st.secrets["DB_HOST"]
+DB_PORT = st.secrets["DB_PORT"]
+DB_NAME = st.secrets["DB_NAME"]
+
+engine = create_engine(
+    f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}", pool_pre_ping=True
+)
 
 url: str = st.secrets["SUPABASE_URL"]
-key: str = st.secrets["SUPABASE_KEY"]  # usa ANON KEY aquí
+key: str = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
 
+# =========================
+# UI
+# =========================
 st.title("🔑 Restablecer tu contraseña")
 
-# ===============================
-# 1) Verificación OTP
-# ===============================
-if "otp_ok" not in st.session_state:
-    st.session_state.otp_ok = False
-if "email" not in st.session_state:
-    st.session_state.email = ""
+with st.form("reset_password"):
+    email = st.text_input("📧 Correo institucional")
+    nueva_pass = st.text_input("Nueva contraseña", type="password")
+    confirmar_pass = st.text_input("Confirmar contraseña", type="password")
+    submit = st.form_submit_button("Actualizar")
 
-if not st.session_state.otp_ok:
-    st.subheader("1) Verifica tu código")
-    with st.form("otp"):
-        email = st.text_input("Correo", value=st.session_state.email)
-        code = st.text_input("Código de 6 dígitos", max_chars=6)
-        submit = st.form_submit_button("Verificar")
-
-        if submit:
+    if submit:
+        if not email or not nueva_pass or not confirmar_pass:
+            st.error("⚠️ Completa todos los campos.")
+        elif nueva_pass != confirmar_pass:
+            st.error("⚠️ Las contraseñas no coinciden.")
+        else:
             try:
-                supabase.auth.verify_otp({
-                    "email": email,
-                    "token": code,
-                    "type": "email"
-                })
-                st.session_state.otp_ok = True
-                st.session_state.email = email
-                st.success("✅ Código verificado. Ahora cambia tu contraseña.")
-                st.rerun()
-            except Exception as e:
-                st.error(f"❌ Error verificando: {e}")
+                # validar que el correo exista en la tabla profesores
+                with engine.connect() as conn:
+                    prof = conn.execute(
+                        text("SELECT id FROM profesores WHERE email = :email"),
+                        {"email": email}
+                    ).fetchone()
 
-# ===============================
-# 2) Nueva contraseña
-# ===============================
-else:
-    st.subheader("2) Nueva contraseña")
-    with st.form("newpass"):
-        new = st.text_input("Nueva contraseña", type="password")
-        confirm = st.text_input("Confirmar contraseña", type="password")
-        submit = st.form_submit_button("Actualizar")
-
-        if submit:
-            if new != confirm:
-                st.error("⚠️ Las contraseñas no coinciden.")
-            else:
-                try:
-                    supabase.auth.update_user({"password": new})
-                    st.success("✅ Contraseña cambiada correctamente.")
+                if not prof:
+                    st.error("❌ El correo no está registrado en el sistema.")
+                else:
+                    # actualizar clave en supabase
+                    supabase.auth.admin.update_user_by_email(
+                        email, {"password": nueva_pass}
+                    )
+                    st.success("✅ Contraseña actualizada correctamente.")
                     st.markdown("[Ir al sistema de puntos](https://horbwartz-zheasdtrshxosf7izr9fv9.streamlit.app/)")
-                except Exception as e:
-                    st.error(f"❌ Error: {e}")
+            except Exception as e:
+                st.error(f"❌ Error: {e}")
