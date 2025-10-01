@@ -293,21 +293,41 @@ with tabs[1]:
     estudiante_seleccionado = None
 
     # ========================
-    # 🔎 Búsqueda por texto
+    # 🔎 Búsqueda por texto (multi)
     # ========================
-    st.subheader("🔎 Búsqueda por estudiante")
+    st.subheader("🔎 Búsqueda por estudiante (multi)")
     opciones = df.drop_duplicates(subset=["estudiante_id"]).apply(
         lambda r: f"{r['codigo'] or ''} | {r['nombre']} {r['apellidos']} | {r['grado']} | {r['fraternidad'] or '-'}",
         axis=1
     ).tolist()
 
-    seleccion = st.selectbox("Escribe y selecciona un estudiante:", [""] + opciones, key="busqueda_texto")
+    seleccion_multi = st.multiselect("Escribe y selecciona estudiante(s):", opciones, key="busqueda_texto_multi")
 
-    if seleccion and seleccion != "":
-        est = df.drop_duplicates(subset=["estudiante_id"]).iloc[opciones.index(seleccion)]
-        estudiante_seleccionado = est
-        st.session_state["estudiante_sel_id"] = str(est["estudiante_id"])
-        st.session_state["origen_busqueda"] = "texto"
+    ids_texto = []
+    if seleccion_multi:
+        for sel in seleccion_multi:
+            est = df.drop_duplicates(subset=["estudiante_id"]).iloc[opciones.index(sel)]
+            ids_texto.append(str(est["estudiante_id"]))
+
+    if ids_texto:
+        st.success(f"✅ {len(ids_texto)} estudiante(s) seleccionados por búsqueda textual")
+        # Si hay solo uno → mostrar detalle
+        if len(ids_texto) == 1:
+            estudiante_seleccionado = df[df["estudiante_id"] == ids_texto[0]].iloc[0]
+            st.session_state["estudiante_sel_id"] = ids_texto[0]
+        else:
+            # Asignar puntos a varios
+            valores_df = leer_valores(colegio_id)
+            st.subheader("➕ Asignar puntos a seleccionados (texto)")
+            categoria = st.selectbox("Categoría", valores_df["nombre"].tolist(), key="categoria_masiva_texto")
+            delta = st.number_input("Puntos (+/-)", min_value=-50, max_value=50, value=1, step=1, key="delta_masiva_texto")
+
+            if st.button("Asignar puntos a seleccionados (texto)", type="primary", use_container_width=True):
+                for est_id in ids_texto:
+                    actualizar_puntos(est_id, str(categoria), int(delta), profesor_id)
+                st.success(f"✅ {delta:+} puntos asignados a {len(ids_texto)} estudiantes por búsqueda textual.")
+                st.rerun()
+
 
     # ========================
     # 🎓 Búsqueda jerárquica
