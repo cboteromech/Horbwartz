@@ -31,30 +31,6 @@ key: str = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
 
 # =========================
-# 📌 Login
-# =========================
-if "user" not in st.session_state:
-    st.sidebar.title("Acceso profesores")
-    email = st.sidebar.text_input("Correo", key="email")
-    password = st.sidebar.text_input("Contraseña", type="password", key="password")
-
-    if st.sidebar.button("Iniciar sesión"):
-        try:
-            user = supabase.auth.sign_in_with_password({"email": email, "password": password})
-            st.session_state["user"] = user.user
-            st.success(f"✅ Bienvenido {email}")
-            st.rerun()
-        except Exception as e:
-            st.error(f"❌ Error: {e}")
-    st.stop()
-else:
-    st.sidebar.write(f"Conectado como {st.session_state['user'].email}")
-    if st.sidebar.button("Cerrar sesión"):
-        supabase.auth.sign_out()
-        del st.session_state["user"]
-        st.rerun()
-
-# =========================
 # 📌 Obtener rol desde la tabla profesores
 # =========================
 def get_profesor(email):
@@ -96,20 +72,21 @@ def leer_historial_puntos(estudiante_id) -> pd.DataFrame:
         df = pd.read_sql(query, conn, params={"eid": estudiante_id})
     return df
 
-def insertar_estudiante(codigo, nombre, apellido, fraternidad):
+def actualizar_estudiante_full(estudiante_id, codigo, nombre, apellidos, grado, fraternidad_id):
     with engine.begin() as conn:
         conn.execute(text("""
-            INSERT INTO estudiantes (codigo, nombre, apellidos, fraternidad_id, colegio_id)
-            VALUES (:codigo, :nombre, :apellido, :frat, :colegio)
-        """), {"codigo": codigo, "nombre": nombre, "apellido": apellido,
-               "frat": fraternidad_id, "colegio": colegio_id})
-        st.cache_data.clear()
-
-def actualizar_estudiante(codigo, campo, valor):
-    with engine.begin() as conn:
-        conn.execute(text(f'UPDATE estudiantes SET "{campo}" = :valor WHERE codigo = :codigo'),
-                     {"valor": valor, "codigo": codigo})
-        st.cache_data.clear()
+            UPDATE estudiantes
+            SET codigo=:codigo, nombre=:nombre, apellidos=:apellidos, grado=:grado, fraternidad_id=:frat
+            WHERE id=:id
+        """), {
+            "codigo": codigo,
+            "nombre": nombre,
+            "apellidos": apellidos,
+            "grado": grado,
+            "frat": fraternidad_id,
+            "id": estudiante_id
+        })
+    st.cache_data.clear()
 
 def actualizar_puntos(estudiante_id, valor_nombre, delta, profesor_id=None):
     with engine.begin() as conn:
@@ -130,36 +107,11 @@ def actualizar_puntos(estudiante_id, valor_nombre, delta, profesor_id=None):
         })
     st.cache_data.clear()
 
-def eliminar_punto(punto_id):
-    with engine.begin() as conn:
-        conn.execute(text("DELETE FROM puntos WHERE id=:id"), {"id": punto_id})
-    st.cache_data.clear()
-
 # =========================
 # 🏆 App principal
 # =========================
 df = leer_resumen_estudiantes()
 st.title("🏆 Sistema de Puntos Hogwarts")
-
-# =========================
-# 👤 Gestión de estudiantes (solo DIRECTOR)
-# =========================
-if rol == "director":
-    with st.expander("➕ Añadir nuevo estudiante"):
-        c1, c2, c3 = st.columns(3)
-        with c1: codigo = st.text_input("Código")
-        with c2: nombre = st.text_input("Nombre")
-        with c3: apellido = st.text_input("Apellidos")
-
-        if st.button("Agregar estudiante"):
-            if not codigo or not nombre or not apellido:
-                st.error("⚠️ Todos los campos son obligatorios.")
-            elif df["codigo"].astype(str).eq(str(codigo).strip()).any():
-                st.error("⚠️ Ya existe un estudiante con ese código.")
-            else:
-                insertar_estudiante(codigo.strip(), nombre.strip(), apellido.strip(), fraternidad_id)
-                st.success(f"✅ Estudiante {nombre} {apellido} añadido.")
-                st.rerun()
 
 # =======================================================
 # 🔎 Buscar estudiante
@@ -178,7 +130,28 @@ if seleccion != "":
         r = alumno.iloc[0]
         st.subheader(f"👤 {r['nombre']} {r['apellidos']} | 🎓 {r['grado']} | 🏠 {r['fraternidad']}")
 
+        # =========================
+        # Totales del estudiante
+        # =========================
+        totales = df[df["estudiante_id"] == r["estudiante_id"]].groupby("valor")["puntos"].sum()
+        total_general = totales.sum()
+
+        st.markdown(f"### 🧮 Total de puntos: **{total_general}**")
+
+        # Tabla pivote
+        tabla = totales.reset_index().pivot_table(values="puntos", index=None, columns="valor", fill_value=0)
+        st.dataframe(tabla, use_container_width=True)
+
+        # Gráfico de barras
+        fig, ax = plt.subplots(figsize=(6,3))
+        totales.plot(kind="bar", ax=ax, color="skyblue")
+        ax.set_ylabel("Puntos")
+        ax.set_title("Distribución de valores")
+        st.pyplot(fig)
+
+        # =========================
         # ➕ Asignar puntos
+        # =========================
         st.subheader("➕ Asignar puntos")
         categoria = st.selectbox("Categoría", df["valor"].unique().tolist())
         delta = st.number_input("Puntos (+/-)", -10, 10, 1)
@@ -187,26 +160,32 @@ if seleccion != "":
             st.success(f"{delta:+} puntos añadidos en {categoria}.")
             st.rerun()
 
-        # ✏️ Editar datos (solo DIRECTOR)
+        # =========================
+        # ✏️ Editar datos completos (solo DIRECTOR)
+        # =========================
         if rol == "director":
-            with st.expander("✏️ Editar datos del estudiante"):
-                nuevo_nombre = st.text_input("Nombre", r["nombre"], key=f"nombre_{codigo}")
-                nuevo_apellido = st.text_input("Apellidos", r["apellidos"], key=f"apellidos_{codigo}")
+            st.subheader("✏️ Editar datos del estudiante")
+            nuevo_codigo = st.text_input("Código", r["codigo"])
+            nuevo_nombre = st.text_input("Nombre", r["nombre"])
+            nuevo_apellido = st.text_input("Apellidos", r["apellidos"])
+            nuevo_grado = st.text_input("Grado", r["grado"])
+            nueva_frat = st.text_input("Fraternidad ID", str(r["fraternidad"]))  # puede mejorarse con selectbox
 
-                if st.button("💾 Guardar cambios"):
-                    actualizar_estudiante(codigo, "nombre", nuevo_nombre.strip())
-                    actualizar_estudiante(codigo, "apellidos", nuevo_apellido.strip())
-                    st.success("✅ Datos actualizados correctamente.")
-                    st.rerun()
+            if st.button("💾 Guardar cambios en estudiante"):
+                actualizar_estudiante_full(
+                    r["estudiante_id"], 
+                    nuevo_codigo.strip(),
+                    nuevo_nombre.strip(),
+                    nuevo_apellido.strip(),
+                    nuevo_grado.strip(),
+                    nueva_frat.strip()
+                )
+                st.success("✅ Datos del estudiante actualizados.")
+                st.rerun()
 
-        # 📊 Historial de puntos (para todos, pero solo director puede borrar)
+        # =========================
+        # 📋 Historial de puntos
+        # =========================
         st.subheader("📋 Historial de puntos")
         historial = leer_historial_puntos(r["estudiante_id"])
         st.dataframe(historial, use_container_width=True)
-
-        if rol == "director" and not historial.empty:
-            borrar_id = st.selectbox("Selecciona registro a borrar", [""] + historial["id"].astype(str).tolist())
-            if borrar_id and st.button("🗑️ Eliminar registro"):
-                eliminar_punto(borrar_id)
-                st.success("✅ Registro eliminado.")
-                st.rerun()
