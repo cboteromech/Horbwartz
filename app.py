@@ -469,43 +469,20 @@ if rol == "director":
                 except Exception as e:
                     st.error(f"❌ Error al crear profesor: {e}")
 
-    # 🔑 Resetear contraseña
+    # 🔑 Resetear contraseña (flujo oficial con correo de Supabase)
     st.subheader("🔑 Resetear contraseña de profesor")
 
     with st.form("reset_pass_form"):
         email_reset = st.text_input("Email del profesor a resetear").strip()
-        nueva_pass = st.text_input("Nueva contraseña asignada", type="password")
-        submit_reset = st.form_submit_button("Resetear")
+        submit_reset = st.form_submit_button("Enviar link de recuperación")
 
     if submit_reset:
-        if not email_reset or not nueva_pass:
-            st.warning("⚠️ Ingresa email y nueva contraseña.")
+        if not email_reset:
+            st.warning("⚠️ Ingresa el email del profesor.")
         else:
-            with engine.connect() as conn:
-                row = conn.execute(text("""
-                    SELECT auth_id
-                    FROM profesores
-                    WHERE email = :email AND colegio_id = :cid
-                """), {"email": email_reset, "cid": colegio_id}).fetchone()
+            try:
+                supabase.auth.reset_password_email(email_reset)
+                st.success(f"✅ Se envió un correo a {email_reset} con instrucciones para restablecer su contraseña.")
+            except Exception as e:
+                st.error(f"❌ Error al enviar correo de recuperación: {e}")
 
-            if not row:
-                st.error("❌ Ese profesor no pertenece a tu colegio.")
-            else:
-                auth_id = str(row[0])
-                try:
-                    # 1. Resetear contraseña en Supabase Auth
-                    supabase.auth.admin.update_user_by_id(auth_id, {"password": nueva_pass})
-
-                    # 2. Llamar a la Edge Function para enviar el correo
-                    resp = supabase.functions.invoke(
-                        "send-password-email",
-                        {"email": email_reset, "password": nueva_pass}  # 👈 payload directo
-                    )
-
-                    if resp.get("status_code") == 200:
-                        st.success(f"✅ Contraseña reseteada y enviada a {email_reset}")
-                    else:
-                        st.warning(f"⚠️ Contraseña cambiada, pero error al enviar correo: {resp}")
-
-                except Exception as e:
-                    st.error(f"❌ Error al resetear contraseña: {e}")
