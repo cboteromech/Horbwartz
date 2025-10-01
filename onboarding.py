@@ -43,28 +43,20 @@ with st.form("reset_form"):
                 if not prof:
                     st.error("❌ No existe un profesor con esa cédula.")
                 else:
-                    nuevo_email = f"{cedula}@hogwartz.edu"  # email institucional
                     nueva_pass = cedula  # clave = cedula
 
                     # 👀 Importante: asegurar que auth_id sea string
                     auth_id = str(prof.auth_id)
 
-                    # 🔑 Actualizar en Supabase Auth
+                    # 🔑 Actualizar solo contraseña en Supabase Auth
                     supabase.auth.admin.update_user_by_id(
                         auth_id,
-                        {"email": nuevo_email, "password": nueva_pass}
+                        {"password": nueva_pass}
                     )
-
-                    # 🔄 Actualizar en tabla profesores
-                    with engine.begin() as conn:
-                        conn.execute(
-                            text("UPDATE profesores SET email=:email WHERE id=:id"),
-                            {"email": nuevo_email, "id": prof.id}
-                        )
 
                     st.success(
                         f"✅ Acceso reseteado. Ahora puede entrar con:\n\n"
-                        f"- **Usuario:** `{nuevo_email}`\n"
+                        f"- **Usuario (email):** `{prof.email}`\n"
                         f"- **Contraseña:** `{cedula}`"
                     )
                     st.markdown("[🔑 Ir al login](https://horbwartz-zheasdtrshxosf7izr9fv9.streamlit.app/)", unsafe_allow_html=True)
