@@ -758,11 +758,11 @@ with tabs[3]:
                 frat_id = str(frats_df.loc[frats_df["nombre"] == fraternidad_n, "id"].iloc[0]) if not frats_df.empty else None
                 try:
                     with engine.begin() as conn:
-                        conn.execute(text("""
+                        result = conn.execute(text("""
                             UPDATE profesores
                             SET email=:email, cedula=:cedula, nombres=:nombres, apellidos=:apellidos,
                                 rol=:rol, asignatura=:asignatura, area=:area, grados=:grados, fraternidad_id=:frat
-                            WHERE id=:id
+                            WHERE id=:id AND colegio_id=:cid
                         """), {
                             "email": email_n,
                             "cedula": cedula_n,
@@ -773,10 +773,17 @@ with tabs[3]:
                             "area": area_n or None,
                             "grados": grados_n or None,
                             "frat": frat_id,
-                            "id": str(profesor_edit.id)
+                            "id": str(profesor_edit[0]),   # 👈 usa índice en vez de atributo
+                            "cid": str(colegio_id)        # 👈 asegura que actualizas dentro del colegio
                         })
-                    st.success("✅ Profesor actualizado exitosamente.")
-                    st.rerun()
+
+                    if result.rowcount == 0:
+                        st.warning("⚠️ No se actualizó ningún registro (¿ID o colegio no coinciden?).")
+                    else:
+                        st.success("✅ Profesor actualizado exitosamente.")
+                        st.rerun()
+
                 except Exception as e:
                     st.error(f"❌ Error al actualizar profesor: {e}")
+
 
