@@ -64,7 +64,7 @@ if "user" not in st.session_state:
             auth_resp = supabase.auth.sign_in_with_password({"email": email, "password": password})
             st.session_state["user"] = auth_resp.user
             st.success(f"✅ Bienvenido {email}")
-            st.experimental_set_query_params(refresh="1")
+            st.query_params["refresh"] = "1"
         except Exception as e:
             st.error(f"❌ Error: {e}")
     st.stop()
@@ -114,7 +114,8 @@ if st.sidebar.button("Cerrar sesión", use_container_width=True):
         supabase.auth.sign_out()
     finally:
         st.session_state.clear()
-        st.experimental_set_query_params(logout="1")
+        st.query_params["logout"] = "1"
+
 
 # =========================
 # 📂 Funciones DB (cache)
