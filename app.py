@@ -723,7 +723,8 @@ with tabs[3]:
             with engine.connect() as conn:
                 profesor_edit = conn.execute(
                     text("""
-                        SELECT id, email, cedula, nombres, apellidos, rol, asignatura, area, grados, fraternidad_id
+                        SELECT id, email, cedula, auth_id, nombres, apellidos, rol, 
+                               asignatura, area, grados, fraternidad_id
                         FROM profesores
                         WHERE cedula = :ced AND colegio_id = :cid
                     """),
@@ -743,7 +744,8 @@ with tabs[3]:
                 cedula_n = st.text_input("Cédula", value=profesor_edit.cedula)
                 nombres_n = st.text_input("Nombres", value=profesor_edit.nombres)
                 apellidos_n = st.text_input("Apellidos", value=profesor_edit.apellidos)
-                rol_n = st.selectbox("Rol", ["profesor", "director"], index=["profesor","director"].index(profesor_edit.rol))
+                rol_n = st.selectbox("Rol", ["profesor", "director"], 
+                                     index=["profesor","director"].index(profesor_edit.rol))
                 asignatura_n = st.text_input("Asignatura", value=profesor_edit.asignatura or "")
                 area_n = st.text_input("Área", value=profesor_edit.area or "")
                 grados_n = st.text_input("Grados (ej: 6A,7B)", value=profesor_edit.grados or "")
@@ -751,14 +753,21 @@ with tabs[3]:
                 fraternidad_n = st.selectbox(
                     "Fraternidad", 
                     frats_df["nombre"].tolist() if not frats_df.empty else [],
-                    index=frats_df["id"].astype(str).tolist().index(str(profesor_edit.fraternidad_id)) if profesor_edit.fraternidad_id and str(profesor_edit.fraternidad_id) in frats_df["id"].astype(str).tolist() else 0
+                    index=frats_df["id"].astype(str).tolist().index(str(profesor_edit.fraternidad_id)) 
+                          if profesor_edit.fraternidad_id and str(profesor_edit.fraternidad_id) in frats_df["id"].astype(str).tolist() else 0
                 )
 
                 submit_edit_prof = st.form_submit_button("Actualizar profesor")
 
             if submit_edit_prof:
                 frat_id = str(frats_df.loc[frats_df["nombre"] == fraternidad_n, "id"].iloc[0]) if not frats_df.empty else None
+
+                # Extraer ID y AUTH_ID correctamente
+                prof_id = str(profesor_edit.id) if hasattr(profesor_edit, "id") else str(profesor_edit[0])
+                auth_id = str(profesor_edit.auth_id) if hasattr(profesor_edit, "auth_id") else str(profesor_edit[2])
+
                 try:
+                    # === Actualizar en la tabla profesores ===
                     with engine.begin() as conn:
                         result = conn.execute(text("""
                             UPDATE profesores
@@ -775,9 +784,19 @@ with tabs[3]:
                             "area": area_n or None,
                             "grados": grados_n or None,
                             "frat": frat_id,
-                            "id": str(profesor_edit[0]),   # 👈 usa índice en vez de atributo
-                            "cid": str(colegio_id)        # 👈 asegura que actualizas dentro del colegio
+                            "id": prof_id,
+                            "cid": str(colegio_id)
                         })
+
+                    # === Sincronizar con Supabase Auth si cambió email o contraseña ===
+                    cambios_auth = {}
+                    if email_n != profesor_edit.email:
+                        cambios_auth["email"] = email_n
+                    if cedula_n != profesor_edit.cedula:
+                        cambios_auth["password"] = cedula_n   # 👈 clave inicial = cédula
+
+                    if cambios_auth:
+                        supabase.auth.admin.update_user_by_id(auth_id, cambios_auth)
 
                     if result.rowcount == 0:
                         st.warning("⚠️ No se actualizó ningún registro (¿ID o colegio no coinciden?).")
@@ -787,5 +806,6 @@ with tabs[3]:
 
                 except Exception as e:
                     st.error(f"❌ Error al actualizar profesor: {e}")
+
 
 
