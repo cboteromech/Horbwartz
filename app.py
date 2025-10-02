@@ -593,7 +593,9 @@ with tabs[3]:
     else:
         st.header("👨‍🏫 Gestión de profesores")
 
-        # Crear profesor
+        # ===================================
+        # ➕ Crear profesor
+        # ===================================
         st.subheader("➕ Agregar profesor")
         with st.form("agregar_profesor"):
             email_prof = st.text_input("Email del profesor").strip()
@@ -614,7 +616,7 @@ with tabs[3]:
                 if not email_prof or not nombres_prof or not apellidos_prof or not cedula_prof:
                     st.error("❌ Debes llenar email, cédula, nombres y apellidos.")
                 else:
-                    frat_id = int(frats.loc[frats["nombre"] == fraternidad_prof, "id"].iloc[0]) if not frats.empty else None
+                    frat_id = str(frats.loc[frats["nombre"] == fraternidad_prof, "id"].iloc[0]) if not frats.empty else None
                     try:
                         user_resp = supabase.auth.admin.create_user({
                             "email": email_prof,
@@ -638,7 +640,7 @@ with tabs[3]:
                                 "asignatura": asignatura_prof or None,
                                 "area": area_prof or None,
                                 "grados": grados_prof or None,
-                                "frat": str(frat_id) if frat_id else None,
+                                "frat": frat_id,
                                 "colegio": str(colegio_id)
                             })
 
@@ -647,7 +649,9 @@ with tabs[3]:
                     except Exception as e:
                         st.error(f"❌ Error al crear profesor: {e}")
 
-        # Resetear contraseña = cédula (conservando email)
+        # ===================================
+        # 🔄 Resetear contraseña
+        # ===================================
         st.subheader("🔄 Resetear contraseña del profesor (clave = cédula)")
         with st.form("reset_pass_prof"):
             cedula_reset = st.text_input("Cédula del profesor").strip()
@@ -660,7 +664,7 @@ with tabs[3]:
                         with engine.begin() as conn:
                             prof = conn.execute(
                                 text("SELECT id, email, auth_id, cedula FROM profesores WHERE cedula = :ced AND colegio_id = :cid"),
-                                {"ced": cedula_reset, "cid": int(colegio_id)}
+                                {"ced": cedula_reset, "cid": str(colegio_id)}
                             ).fetchone()
 
                         if not prof:
@@ -677,7 +681,9 @@ with tabs[3]:
                     except Exception as e:
                         st.error(f"❌ Error al resetear contraseña: {e}")
 
-        # Enviar Magic Link / OTP
+        # ===================================
+        # ✉️ Enviar Magic Link / OTP
+        # ===================================
         st.subheader("✉️ Enviar Magic Link / OTP")
         with st.form("magic_link_form"):
             email_magic = st.text_input("Email del profesor").strip()
@@ -696,3 +702,77 @@ with tabs[3]:
                     st.success(f"✅ Se envió un Magic Link/OTP a {email_magic}. Redirige a la app de reset.")
                 except Exception as e:
                     st.error(f"❌ Error al enviar acceso: {e}")
+
+        # ===================================
+        # ✏️ Editar profesor existente
+        # ===================================
+        st.subheader("✏️ Editar profesor existente")
+
+        with st.form("buscar_profesor"):
+            cedula_buscar = st.text_input("Cédula del profesor a buscar").strip()
+            submit_buscar = st.form_submit_button("Buscar profesor")
+
+        profesor_edit = None
+        if submit_buscar and cedula_buscar:
+            with engine.connect() as conn:
+                profesor_edit = conn.execute(
+                    text("""
+                        SELECT id, email, cedula, nombres, apellidos, rol, asignatura, area, grados, fraternidad_id
+                        FROM profesores
+                        WHERE cedula = :ced AND colegio_id = :cid
+                    """),
+                    {"ced": cedula_buscar, "cid": str(colegio_id)}
+                ).fetchone()
+
+            if not profesor_edit:
+                st.error("❌ No se encontró profesor con esa cédula en este colegio.")
+            else:
+                st.success(f"✅ Profesor encontrado: {profesor_edit.nombres} {profesor_edit.apellidos}")
+
+        if profesor_edit:
+            frats_df = leer_fraternidades(colegio_id)
+
+            with st.form("editar_profesor"):
+                email_n = st.text_input("Email", value=profesor_edit.email)
+                cedula_n = st.text_input("Cédula", value=profesor_edit.cedula)
+                nombres_n = st.text_input("Nombres", value=profesor_edit.nombres)
+                apellidos_n = st.text_input("Apellidos", value=profesor_edit.apellidos)
+                rol_n = st.selectbox("Rol", ["profesor", "director"], index=["profesor","director"].index(profesor_edit.rol))
+                asignatura_n = st.text_input("Asignatura", value=profesor_edit.asignatura or "")
+                area_n = st.text_input("Área", value=profesor_edit.area or "")
+                grados_n = st.text_input("Grados (ej: 6A,7B)", value=profesor_edit.grados or "")
+
+                fraternidad_n = st.selectbox(
+                    "Fraternidad", 
+                    frats_df["nombre"].tolist() if not frats_df.empty else [],
+                    index=frats_df["id"].astype(str).tolist().index(str(profesor_edit.fraternidad_id)) if profesor_edit.fraternidad_id and str(profesor_edit.fraternidad_id) in frats_df["id"].astype(str).tolist() else 0
+                )
+
+                submit_edit_prof = st.form_submit_button("Actualizar profesor")
+
+            if submit_edit_prof:
+                frat_id = str(frats_df.loc[frats_df["nombre"] == fraternidad_n, "id"].iloc[0]) if not frats_df.empty else None
+                try:
+                    with engine.begin() as conn:
+                        conn.execute(text("""
+                            UPDATE profesores
+                            SET email=:email, cedula=:cedula, nombres=:nombres, apellidos=:apellidos,
+                                rol=:rol, asignatura=:asignatura, area=:area, grados=:grados, fraternidad_id=:frat
+                            WHERE id=:id
+                        """), {
+                            "email": email_n,
+                            "cedula": cedula_n,
+                            "nombres": nombres_n,
+                            "apellidos": apellidos_n,
+                            "rol": rol_n,
+                            "asignatura": asignatura_n or None,
+                            "area": area_n or None,
+                            "grados": grados_n or None,
+                            "frat": frat_id,
+                            "id": str(profesor_edit.id)
+                        })
+                    st.success("✅ Profesor actualizado exitosamente.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error al actualizar profesor: {e}")
+
