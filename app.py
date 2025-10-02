@@ -59,23 +59,19 @@ if "user" not in st.session_state:
     st.sidebar.title("Acceso profesores")
     email = st.sidebar.text_input("Correo")
     password = st.sidebar.text_input("Contraseña", type="password")
-
     if st.sidebar.button("Iniciar sesión", use_container_width=True):
         try:
-            auth_resp = supabase.auth.sign_in_with_password(
-                {"email": email, "password": password}
-            )
+            auth_resp = supabase.auth.sign_in_with_password({"email": email, "password": password})
             st.session_state["user"] = auth_resp.user
-            st.query_params["refresh"] = "1"
             st.success(f"✅ Bienvenido {email}")
-            st.rerun()   # 👈 Redibuja la app con el usuario activo
+            st.query_params["refresh"] = "1"
         except Exception as e:
             st.error(f"❌ Error: {e}")
-
-    # 👇 Solo se detiene si NO hay usuario aún
     st.stop()
-    
-# Ya logueado
+
+# =========================
+# ✅ Ya logueado
+# =========================
 st.sidebar.write(f"Conectado como **{st.session_state['user'].email}**")
 
 datos = get_profesor(st.session_state["user"].email)
@@ -85,17 +81,44 @@ if not datos:
 
 profesor_id, rol, fraternidad_id, colegio_id, nombre_completo, asignatura, area, grados = datos
 st.session_state["profesor_id"] = profesor_id
-st.session_state["colegio_id"] = colegio_id   # 👈 GUARDA colegio_id en sesión
 
-# Cerrar sesión
+st.sidebar.markdown("### 👨‍🏫 Perfil")
+st.sidebar.write(f"**Nombre:** {nombre_completo}")
+st.sidebar.write(f"**Rol:** {rol}")
+st.sidebar.write(f"**Asignatura:** {asignatura or '-'}")
+st.sidebar.write(f"**Área:** {area or '-'}")
+st.sidebar.write(f"**Grados:** {grados or '-'}")
+
+# 🔑 Cambiar contraseña
+st.sidebar.markdown("### 🔑 Cambiar contraseña")
+with st.sidebar.form("cambiar_contrasena"):
+    actual = st.text_input("Contraseña actual", type="password")
+    nueva = st.text_input("Nueva contraseña", type="password")
+    confirmar = st.text_input("Confirmar nueva", type="password")
+    submit_pass = st.form_submit_button("Actualizar")
+    if submit_pass:
+        if not actual or not nueva or not confirmar:
+            st.sidebar.error("⚠️ Completa todos los campos.")
+        elif nueva != confirmar:
+            st.sidebar.error("⚠️ Las contraseñas no coinciden.")
+        else:
+            try:
+                supabase.auth.sign_in_with_password({
+                    "email": st.session_state['user'].email,
+                    "password": actual
+                })
+                supabase.auth.update_user({"password": nueva})
+                st.sidebar.success("✅ Contraseña actualizada.")
+            except Exception as e:
+                st.sidebar.error(f"❌ Error: {e}")
+
+# 🚪 Botón de cerrar sesión
 if st.sidebar.button("Cerrar sesión", use_container_width=True):
     try:
         supabase.auth.sign_out()
     finally:
         st.session_state.clear()
         st.query_params["logout"] = "1"
-        st.rerun()   # 👈 Limpia y reinicia la app sin usuario
-
 
 # =========================
 # 📂 Funciones DB (cache)
