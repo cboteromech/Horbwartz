@@ -65,9 +65,11 @@ if "user" not in st.session_state:
             st.session_state["user"] = auth_resp.user
             st.success(f"✅ Bienvenido {email}")
             st.query_params["refresh"] = "1"
+            st.rerun()   # 👈 reinicia la app con usuario ya en sesión
         except Exception as e:
             st.error(f"❌ Error: {e}")
     st.stop()
+
 
 # =========================
 # ✅ Ya logueado
