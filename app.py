@@ -64,7 +64,7 @@ if "user" not in st.session_state:
             auth_resp = supabase.auth.sign_in_with_password({"email": email, "password": password})
             st.session_state["user"] = auth_resp.user
             st.success(f"✅ Bienvenido {email}")
-            st.rerun()
+            st.experimental_set_query_params(refresh="1")
         except Exception as e:
             st.error(f"❌ Error: {e}")
     st.stop()
@@ -114,7 +114,7 @@ if st.sidebar.button("Cerrar sesión", use_container_width=True):
         supabase.auth.sign_out()
     finally:
         st.session_state.clear()
-        st.rerun()
+        st.experimental_set_query_params(logout="1")
 
 # =========================
 # 📂 Funciones DB (cache)
@@ -155,10 +155,10 @@ def actualizar_estudiante_full(estudiante_id, codigo, nombre, apellidos, grado, 
             "nombre": (nombre or "").strip(),
             "apellidos": (apellidos or "").strip(),
             "grado": (grado or "").strip(),
-            "frat": str(fraternidad_id) if fraternidad_id else None,  # ✅ UUID como string
+            "frat": str(fraternidad_id) if fraternidad_id else None,
             "id": str(estudiante_id)
         })
-    clear_all_caches()
+    leer_resumen_estudiantes.clear()
 
 def insertar_estudiante(codigo, nombre, apellidos, grado, fraternidad_id, colegio_id):
     with engine.begin() as conn:
@@ -170,22 +170,20 @@ def insertar_estudiante(codigo, nombre, apellidos, grado, fraternidad_id, colegi
             "nombre": nombre.strip(),
             "apellidos": apellidos.strip(),
             "grado": grado.strip(),
-            "frat": str(fraternidad_id) if fraternidad_id else None,  # ✅ UUID como string
-            "colegio": str(colegio_id)  # ✅ UUID como string
+            "frat": str(fraternidad_id) if fraternidad_id else None,
+            "colegio": str(colegio_id)
         })
-    clear_all_caches()
+    leer_resumen_estudiantes.clear()
 
 # =========================
 # 🧮 Puntos
 # =========================
 def actualizar_puntos(estudiante_id, valor_nombre, delta, profesor_id=None):
     if delta == 0:
-        st.info("ℹ️ No se registran movimientos por 0 puntos.")
         return
 
     prof_id = profesor_id or st.session_state.get("profesor_id")
     if not prof_id:
-        st.error("⚠️ No se reconoce al profesor logueado.")
         return
 
     with engine.begin() as conn:
@@ -194,7 +192,6 @@ def actualizar_puntos(estudiante_id, valor_nombre, delta, profesor_id=None):
             {"valor": valor_nombre, "colegio": str(colegio_id)}
         ).fetchone()
         if not valor_q:
-            st.error("⚠️ El valor no existe en este colegio.")
             return
         valor_id = str(valor_q[0])
 
@@ -207,11 +204,10 @@ def actualizar_puntos(estudiante_id, valor_nombre, delta, profesor_id=None):
             "cantidad": int(delta),
             "profesor_id": str(prof_id)
         })
-    clear_all_caches()
+    leer_resumen_estudiantes.clear()
 
 def asignar_puntos_fraternidad(fraternidad_id, valor_nombre, delta, profesor_id):
     if delta == 0:
-        st.info("ℹ️ No se registran movimientos por 0 puntos.")
         return
     with engine.begin() as conn:
         valor_q = conn.execute(
@@ -219,7 +215,6 @@ def asignar_puntos_fraternidad(fraternidad_id, valor_nombre, delta, profesor_id)
             {"valor": valor_nombre, "colegio": str(colegio_id)}
         ).fetchone()
         if not valor_q:
-            st.error("⚠️ El valor no existe en este colegio.")
             return
         valor_id = str(valor_q[0])
 
@@ -238,7 +233,8 @@ def asignar_puntos_fraternidad(fraternidad_id, valor_nombre, delta, profesor_id)
                 "cantidad": int(delta),
                 "profesor_id": str(profesor_id)
             })
-    clear_all_caches()
+    leer_resumen_estudiantes.clear()
+
 
 # =========================
 # 🏆 App principal (tabs)
