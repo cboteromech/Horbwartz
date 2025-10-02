@@ -500,27 +500,90 @@ with tabs[1]:
 
 # ---- TAB 3: Fraternidades ----
 with tabs[2]:
-    st.header("🏠 Asignar puntos por fraternidad")
+    st.header("🏠 Fraternidades")
+
     frats = leer_fraternidades(colegio_id)
     valores_df = leer_valores(colegio_id)
+
     if frats.empty:
         st.info("No hay fraternidades configuradas.")
-    elif valores_df.empty:
-        st.info("No hay valores configurados.")
     else:
-        col1, col2, col3 = st.columns([2,2,1])
-        with col1:
-            frat_sel = st.selectbox("Fraternidad", frats["nombre"].tolist())
-        with col2:
-            valor_sel = st.selectbox("Valor", valores_df["nombre"].tolist())
-        with col3:
-            delta = st.number_input("Puntos (+/-)", min_value=-50, max_value=50, value=1, step=1)
+        # ===================================
+        # 🏆 Leaderboard general de fraternidades
+        # ===================================
+        st.subheader("🏆 Leaderboard de fraternidades")
+        q_leader = text("""
+            SELECT f.nombre as fraternidad, COALESCE(SUM(p.cantidad),0) as total_puntos
+            FROM fraternidades f
+            LEFT JOIN estudiantes e ON e.fraternidad_id = f.id
+            LEFT JOIN puntos p ON e.id = p.estudiante_id
+            WHERE f.colegio_id = :cid
+            GROUP BY f.nombre
+            ORDER BY total_puntos DESC
+        """)
+        with engine.connect() as conn:
+            df_leader = pd.read_sql(q_leader, conn, params={"cid": colegio_id})
 
-        if st.button("Asignar puntos a toda la fraternidad", type="primary", use_container_width=True):
-            frat_id = str(frats.loc[frats["nombre"] == frat_sel, "id"].iloc[0])
-            asignar_puntos_fraternidad(frat_id, valor_sel, delta, st.session_state["profesor_id"])
-            st.success(f"✅ {delta:+} puntos asignados a todos los estudiantes de {frat_sel}")
-            st.balloons()
+        if not df_leader.empty:
+            st.dataframe(df_leader, use_container_width=True, hide_index=True)
+            fig, ax = plt.subplots(figsize=(6,3))
+            df_leader.plot(kind="bar", x="fraternidad", y="total_puntos", ax=ax, legend=False)
+            ax.set_ylabel("Puntos")
+            ax.set_title("Ranking de fraternidades")
+            st.pyplot(fig)
+        else:
+            st.info("ℹ️ No hay puntos registrados aún.")
+
+        # ===================================
+        # 📊 Estadísticas por fraternidad y valor
+        # ===================================
+        st.subheader("📊 Estadísticas por fraternidad y valor")
+        frat_sel = st.selectbox("Selecciona fraternidad", frats["nombre"].tolist())
+
+        if frat_sel:
+            q_valores = text("""
+                SELECT v.nombre as valor, COALESCE(SUM(p.cantidad),0) as total_puntos
+                FROM valores v
+                LEFT JOIN puntos p ON v.id = p.valor_id
+                LEFT JOIN estudiantes e ON p.estudiante_id = e.id
+                LEFT JOIN fraternidades f ON e.fraternidad_id = f.id
+                WHERE v.colegio_id = :cid AND f.nombre = :fname
+                GROUP BY v.nombre
+                ORDER BY total_puntos DESC
+            """)
+            with engine.connect() as conn:
+                df_valores = pd.read_sql(q_valores, conn, params={"cid": colegio_id, "fname": frat_sel})
+
+            if not df_valores.empty:
+                st.dataframe(df_valores, use_container_width=True, hide_index=True)
+                fig, ax = plt.subplots(figsize=(6,3))
+                df_valores.plot(kind="bar", x="valor", y="total_puntos", ax=ax, legend=False)
+                ax.set_ylabel("Puntos")
+                ax.set_title(f"Distribución de valores - {frat_sel}")
+                st.pyplot(fig)
+            else:
+                st.warning("⚠️ Esta fraternidad aún no tiene puntos asignados.")
+
+        # ===================================
+        # ➕ Asignación masiva (como ya la tenías)
+        # ===================================
+        st.subheader("➕ Asignar puntos por fraternidad")
+        if valores_df.empty:
+            st.info("No hay valores configurados.")
+        else:
+            col1, col2, col3 = st.columns([2,2,1])
+            with col1:
+                frat_sel2 = st.selectbox("Fraternidad", frats["nombre"].tolist(), key="frat_asignar")
+            with col2:
+                valor_sel = st.selectbox("Valor", valores_df["nombre"].tolist(), key="valor_asignar")
+            with col3:
+                delta = st.number_input("Puntos (+/-)", min_value=-50, max_value=50, value=1, step=1, key="delta_asignar")
+
+            if st.button("Asignar puntos a toda la fraternidad", type="primary", use_container_width=True):
+                frat_id = str(frats.loc[frats["nombre"] == frat_sel2, "id"].iloc[0])
+                asignar_puntos_fraternidad(frat_id, valor_sel, delta, st.session_state["profesor_id"])
+                st.success(f"✅ {delta:+} puntos asignados a todos los estudiantes de {frat_sel2}")
+                st.balloons()
 
 
 # ---- TAB 4: Profesores (solo director) ----
