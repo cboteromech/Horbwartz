@@ -521,10 +521,11 @@ with tabs[2]:
             delta = st.number_input("Puntos (+/-)", min_value=-50, max_value=50, value=1, step=1)
 
         if st.button("Asignar puntos a toda la fraternidad", type="primary", use_container_width=True):
-            frat_id = int(frats.loc[frats["nombre"] == frat_sel, "id"].iloc[0])
+            frat_id = str(frats.loc[frats["nombre"] == frat_sel, "id"].iloc[0])
             asignar_puntos_fraternidad(frat_id, valor_sel, delta, st.session_state["profesor_id"])
             st.success(f"✅ {delta:+} puntos asignados a todos los estudiantes de {frat_sel}")
             st.balloons()
+
 
 # ---- TAB 4: Profesores (solo director) ----
 with tabs[3]:
