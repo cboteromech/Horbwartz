@@ -74,9 +74,18 @@ if "user" not in st.session_state:
 
     # 👇 Solo se detiene si NO hay usuario aún
     st.stop()
-
+    
 # Ya logueado
 st.sidebar.write(f"Conectado como **{st.session_state['user'].email}**")
+
+datos = get_profesor(st.session_state["user"].email)
+if not datos:
+    st.error("❌ No tienes un rol asignado en este colegio")
+    st.stop()
+
+profesor_id, rol, fraternidad_id, colegio_id, nombre_completo, asignatura, area, grados = datos
+st.session_state["profesor_id"] = profesor_id
+st.session_state["colegio_id"] = colegio_id   # 👈 GUARDA colegio_id en sesión
 
 # Cerrar sesión
 if st.sidebar.button("Cerrar sesión", use_container_width=True):
